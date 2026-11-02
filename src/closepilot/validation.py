@@ -42,6 +42,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from closepilot.config import ControlConfig
 from closepilot.models import (
+    CONTROL_IDS,
     REQUIRED_COLUMNS,
     Finding,
     Record,
@@ -261,9 +262,6 @@ class PackageSummary:
     findings_by_control: dict[str, int]
     control_totals: dict[str, CurrencyTotal]
     records_excluded_from_totals: int
-
-
-CONTROL_IDS: tuple[str, ...] = ("C01", "C02", "C03", "C04", "C05", "C06", "C07")
 
 
 def summarise(results: Sequence[RecordResult]) -> PackageSummary:

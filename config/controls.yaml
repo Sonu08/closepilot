@@ -16,3 +16,8 @@ allowed_periods:
 
 mapping_valid_values:
   - VALID
+
+# Cases opened for these controls cannot be recommended or decided as APPROVED until
+# the Finance Reviewer has attached at least one evidence reference. May be empty ([]).
+evidence_required_controls:
+  - C01

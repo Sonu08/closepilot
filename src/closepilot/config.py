@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml
 
+from closepilot.models import CONTROL_IDS
+
 MAX_CONFIG_BYTES = 64 * 1024
 
 
@@ -24,6 +26,21 @@ class ControlConfig:
     allowed_currencies: frozenset[str]
     allowed_periods: frozenset[str]
     mapping_valid_values: frozenset[str]
+    #: Cases opened for any of these controls need at least one human-attached evidence
+    #: reference before approval can be recommended or decided. May be empty.
+    evidence_required_controls: frozenset[str] = frozenset()
+
+
+def _control_ids(data: dict[str, Any], key: str) -> frozenset[str]:
+    if key not in data:
+        raise ConfigError(f"missing required setting '{key}'")
+    value = data[key]
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ConfigError(f"'{key}' must be a list of control IDs (may be empty)")
+    unknown = sorted(set(value) - set(CONTROL_IDS))
+    if unknown:
+        raise ConfigError(f"'{key}' contains unknown control IDs: {', '.join(unknown)}")
+    return frozenset(value)
 
 
 def _pct(data: dict[str, Any], key: str) -> Decimal:
@@ -65,6 +82,7 @@ def parse_config(data: object) -> ControlConfig:
         allowed_currencies=_str_set(data, "allowed_currencies"),
         allowed_periods=_str_set(data, "allowed_periods"),
         mapping_valid_values=_str_set(data, "mapping_valid_values"),
+        evidence_required_controls=_control_ids(data, "evidence_required_controls"),
     )
     if config.variance_warning_pct > config.variance_review_pct:
         raise ConfigError("variance_warning_pct must not exceed variance_review_pct")

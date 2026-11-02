@@ -17,6 +17,7 @@ def _valid() -> dict[str, Any]:
         "allowed_currencies": ["EUR", "USD", "PLN"],
         "allowed_periods": ["2026-10"],
         "mapping_valid_values": ["VALID"],
+        "evidence_required_controls": ["C01"],
     }
 
 
@@ -27,6 +28,7 @@ def test_repository_config_loads_exact_values(config: ControlConfig) -> None:
     assert config.allowed_currencies == frozenset({"EUR", "USD", "PLN"})
     assert config.allowed_periods == frozenset({"2026-10"})
     assert config.mapping_valid_values == frozenset({"VALID"})
+    assert config.evidence_required_controls == frozenset({"C01"})
 
 
 def test_missing_setting_is_rejected() -> None:
@@ -80,3 +82,31 @@ def test_python_object_tags_are_not_executed(tmp_path: Path) -> None:
     path.write_text("!!python/object/apply:os.system ['echo pwned']\n", encoding="utf-8")
     with pytest.raises(ConfigError, match="malformed YAML"):
         load_config(path)
+
+
+def test_evidence_required_controls_may_be_empty() -> None:
+    data = _valid()
+    data["evidence_required_controls"] = []
+    assert parse_config(data).evidence_required_controls == frozenset()
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        (["C01", "C99"], "unknown control IDs: C99"),
+        ("C01", "must be a list of control IDs"),
+        ([1], "must be a list of control IDs"),
+    ],
+)
+def test_invalid_evidence_required_controls_rejected(value: object, message: str) -> None:
+    data = _valid()
+    data["evidence_required_controls"] = value
+    with pytest.raises(ConfigError, match=message):
+        parse_config(data)
+
+
+def test_missing_evidence_required_controls_rejected() -> None:
+    data = _valid()
+    del data["evidence_required_controls"]
+    with pytest.raises(ConfigError, match="missing required setting 'evidence_required_controls'"):
+        parse_config(data)
