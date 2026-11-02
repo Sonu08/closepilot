@@ -1,0 +1,416 @@
+{
+  "summary": {
+    "total_records": 25,
+    "status_counts": {
+      "PASS": 10,
+      "WARNING": 3,
+      "REVIEW_REQUIRED": 10,
+      "ERROR": 2
+    },
+    "findings_by_control": {
+      "C01": 4,
+      "C02": 4,
+      "C03": 1,
+      "C04": 2,
+      "C05": 2,
+      "C06": 2,
+      "C07": 2
+    },
+    "control_totals": {
+      "EUR": {
+        "records": 7,
+        "actual": "561700.00",
+        "forecast": "556500.00",
+        "variance": "5200.00"
+      },
+      "GBP": {
+        "records": 1,
+        "actual": "20000.00",
+        "forecast": "20000.00",
+        "variance": "0.00"
+      },
+      "PLN": {
+        "records": 8,
+        "actual": "310296.00",
+        "forecast": "310000.00",
+        "variance": "296.00"
+      },
+      "USD": {
+        "records": 8,
+        "actual": "316300.00",
+        "forecast": "319000.00",
+        "variance": "-2700.00"
+      }
+    },
+    "records_excluded_from_totals": 1
+  },
+  "results": [
+    {
+      "record_id": "EX-001",
+      "line": 2,
+      "status": "PASS",
+      "actual": "250000.00",
+      "forecast": "250000.00",
+      "variance_amount": "0.00",
+      "variance_pct": "0.00",
+      "findings": []
+    },
+    {
+      "record_id": "EX-002",
+      "line": 3,
+      "status": "PASS",
+      "actual": "84000.00",
+      "forecast": "82000.00",
+      "variance_amount": "2000.00",
+      "variance_pct": "2.44",
+      "findings": []
+    },
+    {
+      "record_id": "EX-003",
+      "line": 4,
+      "status": "REVIEW_REQUIRED",
+      "actual": "108200.00",
+      "forecast": "95000.00",
+      "variance_amount": "13200.00",
+      "variance_pct": "13.89",
+      "findings": [
+        {
+          "control_id": "C01",
+          "status": "REVIEW_REQUIRED",
+          "message": "absolute variance 13.89% exceeds review threshold 10.00%",
+          "threshold_pct": "10.00"
+        },
+        {
+          "control_id": "C05",
+          "status": "REVIEW_REQUIRED",
+          "message": "commentary is required when absolute variance is at least 5.00% (or undefined) but is blank",
+          "threshold_pct": "5.00"
+        }
+      ]
+    },
+    {
+      "record_id": "EX-004",
+      "line": 5,
+      "status": "PASS",
+      "actual": "41996.00",
+      "forecast": "40000.00",
+      "variance_amount": "1996.00",
+      "variance_pct": "4.99",
+      "findings": []
+    },
+    {
+      "record_id": "EX-005",
+      "line": 6,
+      "status": "WARNING",
+      "actual": "52500.00",
+      "forecast": "50000.00",
+      "variance_amount": "2500.00",
+      "variance_pct": "5.00",
+      "findings": [
+        {
+          "control_id": "C02",
+          "status": "WARNING",
+          "message": "absolute variance 5.00% is within the warning band 5.00% to 10.00%",
+          "threshold_pct": "5.00"
+        }
+      ]
+    },
+    {
+      "record_id": "EX-006",
+      "line": 7,
+      "status": "WARNING",
+      "actual": "107500.00",
+      "forecast": "100000.00",
+      "variance_amount": "7500.00",
+      "variance_pct": "7.50",
+      "findings": [
+        {
+          "control_id": "C02",
+          "status": "WARNING",
+          "message": "absolute variance 7.50% is within the warning band 5.00% to 10.00%",
+          "threshold_pct": "5.00"
+        }
+      ]
+    },
+    {
+      "record_id": "EX-007",
+      "line": 8,
+      "status": "WARNING",
+      "actual": "66000.00",
+      "forecast": "60000.00",
+      "variance_amount": "6000.00",
+      "variance_pct": "10.00",
+      "findings": [
+        {
+          "control_id": "C02",
+          "status": "WARNING",
+          "message": "absolute variance 10.00% is within the warning band 5.00% to 10.00%",
+          "threshold_pct": "5.00"
+        }
+      ]
+    },
+    {
+      "record_id": "EX-008",
+      "line": 9,
+      "status": "REVIEW_REQUIRED",
+      "actual": "85000.00",
+      "forecast": "100000.00",
+      "variance_amount": "-15000.00",
+      "variance_pct": "-15.00",
+      "findings": [
+        {
+          "control_id": "C01",
+          "status": "REVIEW_REQUIRED",
+          "message": "absolute variance 15.00% exceeds review threshold 10.00%",
+          "threshold_pct": "10.00"
+        }
+      ]
+    },
+    {
+      "record_id": "EX-009",
+      "line": 10,
+      "status": "REVIEW_REQUIRED",
+      "actual": "30000.00",
+      "forecast": "30000.00",
+      "variance_amount": "0.00",
+      "variance_pct": "0.00",
+      "findings": [
+        {
+          "control_id": "C03",
+          "status": "REVIEW_REQUIRED",
+          "message": "mapping_status 'UNMAPPED' is not an allowed value (allowed: VALID)",
+          "threshold_pct": null
+        }
+      ]
+    },
+    {
+      "record_id": "EX-010",
+      "line": 11,
+      "status": "REVIEW_REQUIRED",
+      "actual": "31500.00",
+      "forecast": "30000.00",
+      "variance_amount": "1500.00",
+      "variance_pct": "5.00",
+      "findings": [
+        {
+          "control_id": "C02",
+          "status": "WARNING",
+          "message": "absolute variance 5.00% is within the warning band 5.00% to 10.00%",
+          "threshold_pct": "5.00"
+        },
+        {
+          "control_id": "C05",
+          "status": "REVIEW_REQUIRED",
+          "message": "commentary is required when absolute variance is at least 5.00% (or undefined) but is blank",
+          "threshold_pct": "5.00"
+        }
+      ]
+    },
+    {
+      "record_id": "EX-011",
+      "line": 12,
+      "status": "REVIEW_REQUIRED",
+      "actual": "12000.00",
+      "forecast": "12000.00",
+      "variance_amount": "0.00",
+      "variance_pct": "0.00",
+      "findings": [
+        {
+          "control_id": "C04",
+          "status": "REVIEW_REQUIRED",
+          "message": "record_id 'EX-011' appears 2 times in this package",
+          "threshold_pct": null
+        }
+      ]
+    },
+    {
+      "record_id": "EX-011",
+      "line": 13,
+      "status": "REVIEW_REQUIRED",
+      "actual": "12000.00",
+      "forecast": "12000.00",
+      "variance_amount": "0.00",
+      "variance_pct": "0.00",
+      "findings": [
+        {
+          "control_id": "C04",
+          "status": "REVIEW_REQUIRED",
+          "message": "record_id 'EX-011' appears 2 times in this package",
+          "threshold_pct": null
+        }
+      ]
+    },
+    {
+      "record_id": "EX-012",
+      "line": 14,
+      "status": "REVIEW_REQUIRED",
+      "actual": "20000.00",
+      "forecast": "20000.00",
+      "variance_amount": "0.00",
+      "variance_pct": "0.00",
+      "findings": [
+        {
+          "control_id": "C06",
+          "status": "REVIEW_REQUIRED",
+          "message": "currency 'GBP' is not supported (allowed: EUR, PLN, USD)",
+          "threshold_pct": null
+        }
+      ]
+    },
+    {
+      "record_id": "EX-013",
+      "line": 15,
+      "status": "REVIEW_REQUIRED",
+      "actual": "18000.00",
+      "forecast": "18000.00",
+      "variance_amount": "0.00",
+      "variance_pct": "0.00",
+      "findings": [
+        {
+          "control_id": "C06",
+          "status": "REVIEW_REQUIRED",
+          "message": "period '2026-09' is not an allowed reporting period (allowed: 2026-10)",
+          "threshold_pct": null
+        }
+      ]
+    },
+    {
+      "record_id": "EX-014",
+      "line": 16,
+      "status": "REVIEW_REQUIRED",
+      "actual": "4500.00",
+      "forecast": "0.00",
+      "variance_amount": "4500.00",
+      "variance_pct": null,
+      "findings": [
+        {
+          "control_id": "C01",
+          "status": "REVIEW_REQUIRED",
+          "message": "variance percentage is undefined (zero forecast, non-zero actual); human review required",
+          "threshold_pct": "10.00"
+        }
+      ]
+    },
+    {
+      "record_id": "EX-015",
+      "line": 17,
+      "status": "PASS",
+      "actual": "0.00",
+      "forecast": "0.00",
+      "variance_amount": "0.00",
+      "variance_pct": "0.00",
+      "findings": []
+    },
+    {
+      "record_id": "EX-016",
+      "line": 18,
+      "status": "REVIEW_REQUIRED",
+      "actual": "0.00",
+      "forecast": "18000.00",
+      "variance_amount": "-18000.00",
+      "variance_pct": "-100.00",
+      "findings": [
+        {
+          "control_id": "C01",
+          "status": "REVIEW_REQUIRED",
+          "message": "absolute variance 100.00% exceeds review threshold 10.00%",
+          "threshold_pct": "10.00"
+        }
+      ]
+    },
+    {
+      "record_id": "EX-017",
+      "line": 19,
+      "status": "PASS",
+      "actual": "-52000.00",
+      "forecast": "-50000.00",
+      "variance_amount": "-2000.00",
+      "variance_pct": "-4.00",
+      "findings": []
+    },
+    {
+      "record_id": "EX-018",
+      "line": 20,
+      "status": "ERROR",
+      "actual": "5000.00",
+      "forecast": "5000.00",
+      "variance_amount": "0.00",
+      "variance_pct": "0.00",
+      "findings": [
+        {
+          "control_id": "C07",
+          "status": "ERROR",
+          "message": "cost_centre: missing value",
+          "threshold_pct": null
+        }
+      ]
+    },
+    {
+      "record_id": "EX-019",
+      "line": 21,
+      "status": "ERROR",
+      "actual": null,
+      "forecast": "105000.00",
+      "variance_amount": null,
+      "variance_pct": null,
+      "findings": [
+        {
+          "control_id": "C07",
+          "status": "ERROR",
+          "message": "actual: malformed numeric value '1O5000.00'",
+          "threshold_pct": null
+        }
+      ]
+    },
+    {
+      "record_id": "EX-020",
+      "line": 22,
+      "status": "PASS",
+      "actual": "75000.00",
+      "forecast": "75000.00",
+      "variance_amount": "0.00",
+      "variance_pct": "0.00",
+      "findings": []
+    },
+    {
+      "record_id": "EX-021",
+      "line": 23,
+      "status": "PASS",
+      "actual": "15300.00",
+      "forecast": "15000.00",
+      "variance_amount": "300.00",
+      "variance_pct": "2.00",
+      "findings": []
+    },
+    {
+      "record_id": "EX-022",
+      "line": 24,
+      "status": "PASS",
+      "actual": "210000.00",
+      "forecast": "212000.00",
+      "variance_amount": "-2000.00",
+      "variance_pct": "-0.94",
+      "findings": []
+    },
+    {
+      "record_id": "EX-023",
+      "line": 25,
+      "status": "PASS",
+      "actual": "22000.00",
+      "forecast": "21500.00",
+      "variance_amount": "500.00",
+      "variance_pct": "2.33",
+      "findings": []
+    },
+    {
+      "record_id": "EX-024",
+      "line": 26,
+      "status": "PASS",
+      "actual": "9800.00",
+      "forecast": "10000.00",
+      "variance_amount": "-200.00",
+      "variance_pct": "-2.00",
+      "findings": []
+    }
+  ]
+}
