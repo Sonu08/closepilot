@@ -14,10 +14,10 @@ CONFIG = str(REPO_ROOT / "config" / "controls.yaml")
 def test_validate_json_golden_record(c01_package: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["validate", str(c01_package), "--config", CONFIG, "--json"]) == EXIT_OK
     payload = json.loads(capsys.readouterr().out)
-    assert payload["summary"] == {
-        "total_records": 8,
-        "PASS": 3,
-        "WARNING": 0,
+    assert payload["summary"]["total_records"] == 8
+    assert payload["summary"]["status_counts"] == {
+        "PASS": 2,
+        "WARNING": 1,
         "REVIEW_REQUIRED": 5,
         "ERROR": 0,
     }
@@ -30,14 +30,22 @@ def test_validate_json_golden_record(c01_package: Path, capsys: pytest.CaptureFi
         "forecast": "95000.00",
         "variance_amount": "13200.00",
         "variance_pct": "13.89",
-        "parse_issues": [],
         "findings": [
             {
                 "control_id": "C01",
                 "status": "REVIEW_REQUIRED",
                 "message": "absolute variance 13.89% exceeds review threshold 10.00%",
                 "threshold_pct": "10.00",
-            }
+            },
+            {
+                "control_id": "C05",
+                "status": "REVIEW_REQUIRED",
+                "message": (
+                    "commentary is required when absolute variance is at least 5.00% "
+                    "(or undefined) but is blank"
+                ),
+                "threshold_pct": "5.00",
+            },
         ],
     }
     ex006 = next(r for r in payload["results"] if r["record_id"] == "EX-006")
@@ -52,6 +60,9 @@ def test_validate_text_shows_calculation(
     assert "Record: EX-003  ->  REVIEW_REQUIRED" in out
     assert "Variance amount: 13200.00  Variance percentage: 13.89%" in out
     assert "Configured review threshold: 10.00%" in out
+    assert "Configured commentary threshold: 5.00%" in out
+    assert "Status: PASS=2, WARNING=1, REVIEW_REQUIRED=5, ERROR=0" in out
+    assert "Control total EUR: records=4 actual=428210.00 forecast=395000.00" in out
 
 
 def test_text_output_reports_malformed_number_once(

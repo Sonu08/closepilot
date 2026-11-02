@@ -50,6 +50,8 @@ class Record:
     ``raw`` keeps every original string value (untrusted input, never executed).
     ``actual`` / ``forecast`` are ``None`` when the source value is missing or malformed;
     the reason is recorded in ``parse_issues``.
+    ``malformed_row`` is True when the row's field count does not match the header: its
+    values may sit in the wrong columns, so no field of the row is trusted.
     """
 
     line_number: int
@@ -57,6 +59,7 @@ class Record:
     actual: Decimal | None
     forecast: Decimal | None
     parse_issues: tuple[str, ...] = ()
+    malformed_row: bool = False
 
     @property
     def record_id(self) -> str:

@@ -40,6 +40,41 @@ def test_parse_amount_rejects_malformed(text: str) -> None:
     assert parse_amount(text) is None
 
 
+@pytest.mark.parametrize(
+    ("text", "accepted"),
+    [
+        ("9" * 15, True),  # 15 integer digits
+        ("9" * 16, False),
+        ("-" + "9" * 15 + ".00", True),
+        ("1.123456", True),  # 6 decimal digits
+        ("1.1234567", False),
+        ("9" * 15 + "." + "9" * 6, True),
+        ("9" * 30 + ".00", False),
+    ],
+)
+def test_parse_amount_precision_limits(text: str, accepted: bool) -> None:
+    assert (parse_amount(text) == Decimal(text)) if accepted else (parse_amount(text) is None)
+
+
+def test_repeated_header_column_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "pkg.csv"
+    path.write_text(f"record_id,actual,{HEADER}\n", encoding="utf-8")
+    with pytest.raises(
+        IngestionError, match="package header repeats columns: 'actual', 'record_id'"
+    ):
+        load_package(path)
+
+
+def test_field_count_mismatch_marks_row_malformed(tmp_path: Path) -> None:
+    path = tmp_path / "pkg.csv"
+    path.write_text(f"{HEADER}\n{_row('100.00', '1,000.00')}\n", encoding="utf-8")
+    [record] = load_package(path)
+    assert record.malformed_row is True
+    assert record.actual is None
+    assert record.forecast is None
+    assert record.parse_issues == ("row: field count does not match header (12 columns expected)",)
+
+
 def test_load_c01_fixture(c01_package: Path) -> None:
     records = load_package(c01_package)
     assert [r.record_id for r in records] == [f"EX-00{i}" for i in range(1, 9)]

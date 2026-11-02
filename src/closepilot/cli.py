@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections import Counter
 from collections.abc import Sequence
 from decimal import Decimal
 from pathlib import Path
@@ -13,12 +12,18 @@ from typing import Any
 
 from closepilot.config import ConfigError, load_config
 from closepilot.ingestion import IngestionError, load_package
-from closepilot.models import RecordResult, Status
-from closepilot.validation import validate_package
+from closepilot.models import RecordResult
+from closepilot.validation import PackageSummary, summarise, validate_package
 
 DEFAULT_CONFIG = Path("config/controls.yaml")
 EXIT_OK = 0
 EXIT_INPUT_ERROR = 2
+
+_THRESHOLD_LABEL = {
+    "C01": "review threshold",
+    "C02": "warning threshold",
+    "C05": "commentary threshold",
+}
 
 
 def _money(value: Decimal) -> str:
@@ -29,17 +34,23 @@ def _pct(value: Decimal | None) -> str | None:
     return None if value is None else f"{value:.2f}"
 
 
+def _optional_money(value: Decimal | None) -> str | None:
+    return None if value is None else _money(value)
+
+
 def result_to_dict(result: RecordResult) -> dict[str, Any]:
+    """Serialise one result. ``actual`` / ``forecast`` are reported individually, so a
+    valid value is kept even when the other one is unusable; each is ``null`` only when
+    that value itself is unusable (or the whole row is malformed)."""
     v = result.variance
     return {
         "record_id": result.record.record_id,
         "line": result.record.line_number,
         "status": result.status.value,
-        "actual": None if v is None else _money(v.actual),
-        "forecast": None if v is None else _money(v.forecast),
+        "actual": _optional_money(result.record.actual),
+        "forecast": _optional_money(result.record.forecast),
         "variance_amount": None if v is None else _money(v.amount),
         "variance_pct": None if v is None else _pct(v.pct),
-        "parse_issues": list(result.record.parse_issues),
         "findings": [
             {
                 "control_id": f.control_id,
@@ -52,11 +63,22 @@ def result_to_dict(result: RecordResult) -> dict[str, Any]:
     }
 
 
-def summarise(results: Sequence[RecordResult]) -> dict[str, int]:
-    counts = Counter(r.status for r in results)
-    summary = {"total_records": len(results)}
-    summary.update({status.value: counts.get(status, 0) for status in Status})
-    return summary
+def summary_to_dict(summary: PackageSummary) -> dict[str, Any]:
+    return {
+        "total_records": summary.total_records,
+        "status_counts": {s.value: n for s, n in summary.status_counts.items()},
+        "findings_by_control": summary.findings_by_control,
+        "control_totals": {
+            currency: {
+                "records": t.records,
+                "actual": _money(t.actual),
+                "forecast": _money(t.forecast),
+                "variance": _money(t.variance),
+            }
+            for currency, t in summary.control_totals.items()
+        },
+        "records_excluded_from_totals": summary.records_excluded_from_totals,
+    }
 
 
 def _render_text(results: Sequence[RecordResult]) -> str:
@@ -64,19 +86,41 @@ def _render_text(results: Sequence[RecordResult]) -> str:
     for result in results:
         d = result_to_dict(result)
         lines.append(f"Record: {d['record_id']}  ->  {d['status']}")
-        if d["actual"] is not None:
+        if d["actual"] is not None or d["forecast"] is not None:
+            actual = d["actual"] or "unusable"
+            forecast = d["forecast"] or "unusable"
+            lines.append(f"  Actual: {actual}  Forecast: {forecast}")
+        if d["variance_amount"] is not None:
             pct = "undefined" if d["variance_pct"] is None else f"{d['variance_pct']}%"
-            lines.append(f"  Actual: {d['actual']}  Forecast: {d['forecast']}")
             lines.append(f"  Variance amount: {d['variance_amount']}  Variance percentage: {pct}")
-        # Parse issues are already reported as C07 findings; print them only once.
+        # Parse issues are reported as C07 findings; each problem is printed once.
         for f in d["findings"]:
             lines.append(f"  [{f['control_id']}] {f['status']}: {f['message']}")
-            if f["threshold_pct"] is not None:
-                lines.append(f"  Configured review threshold: {f['threshold_pct']}%")
-    summary = summarise(results)
+            label = _THRESHOLD_LABEL.get(f["control_id"])
+            if label and f["threshold_pct"] is not None:
+                lines.append(f"  Configured {label}: {f['threshold_pct']}%")
+
+    s = summary_to_dict(summarise(results))
     lines.append("")
-    lines.append("Summary: " + ", ".join(f"{k}={v}" for k, v in summary.items()))
+    lines.append(f"Total records: {s['total_records']}")
+    lines.append("Status: " + ", ".join(f"{k}={v}" for k, v in s["status_counts"].items()))
+    lines.append(
+        "Findings by control: " + ", ".join(f"{k}={v}" for k, v in s["findings_by_control"].items())
+    )
+    for currency, t in s["control_totals"].items():
+        lines.append(
+            f"Control total {currency}: records={t['records']} actual={t['actual']} "
+            f"forecast={t['forecast']} variance={t['variance']}"
+        )
+    lines.append(f"Records excluded from totals: {s['records_excluded_from_totals']}")
     return "\n".join(lines)
+
+
+def build_report(results: Sequence[RecordResult]) -> dict[str, Any]:
+    return {
+        "summary": summary_to_dict(summarise(results)),
+        "results": [result_to_dict(r) for r in results],
+    }
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
@@ -88,11 +132,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         return EXIT_INPUT_ERROR
     results = validate_package(records, config)
     if args.json:
-        payload = {
-            "summary": summarise(results),
-            "results": [result_to_dict(r) for r in results],
-        }
-        print(json.dumps(payload, indent=2))
+        print(json.dumps(build_report(results), indent=2))
     else:
         print(_render_text(results))
     return EXIT_OK
