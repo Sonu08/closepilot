@@ -4,7 +4,7 @@ ClosePilot is a collaborative AI finance-control room where agents validate and 
 
 > **ClosePilot does not allow an AI agent to approve material finance exceptions.** Agents calculate, investigate and recommend; a human reviewer makes and records the final decision.
 
-**Status:** work in progress (Phase 2 — full deterministic control engine C01–C07). All data is synthetic and describes the fictional *Northstar Logistics Group*.
+**Status:** work in progress (Phase 3 — deterministic controls, case workflow with human-only approval, append-only audit log). All data is synthetic and describes the fictional *Northstar Logistics Group*.
 
 ## Quick start (development)
 
@@ -56,6 +56,40 @@ Expected result: 25 records — 10 `PASS`, 3 `WARNING`, 10 `REVIEW_REQUIRED`, 2 
 ```bash
 python -m closepilot.cli validate data/synthetic_close_package.csv --json > samples/expected_results.json
 ```
+
+## Case workflow and human-only approval
+
+Records that are `REVIEW_REQUIRED` or `ERROR` become cases (one per `record_id`, so duplicate rows share a case). [`src/closepilot/workflow.py`](src/closepilot/workflow.py) enforces the state machine and role permissions:
+
+| Action | From → to | Who may do it |
+|---|---|---|
+| Open case | – → `OPEN` | Control Analyst, human |
+| Hand off | `OPEN` → `INVESTIGATING` | Control Analyst, human |
+| Request evidence | `INVESTIGATING` / `READY_FOR_HUMAN_REVIEW` → `AWAITING_EVIDENCE` | Exception Investigator, human |
+| Attach evidence | `AWAITING_EVIDENCE` → `INVESTIGATING` | **human only** |
+| Add commentary | any undecided state (unchanged) | **human only** |
+| Recommend | `INVESTIGATING` → `READY_FOR_HUMAN_REVIEW` | Exception Investigator |
+| Return for rework | `READY_FOR_HUMAN_REVIEW` → `INVESTIGATING` | **human only** |
+| Decide | `READY_FOR_HUMAN_REVIEW` → `APPROVED` / `REJECTED` | **human only** |
+| Close | `APPROVED` / `REJECTED` → `CLOSED` | **human only** |
+
+- **Agents can never reach `APPROVED`, `REJECTED` or `CLOSED`.** Besides the table, a separate invariant blocks any agent event outside the four agent states, or any agent event carrying a decision.
+- **A decision is final.** `APPROVED` and `REJECTED` lead only to `CLOSED`; nothing overrides or reopens them.
+- **Evidence condition.** For controls in `evidence_required_controls` (C01 by default), or after evidence was requested, approval can be neither recommended nor decided until the human has attached an evidence reference. References are labels the human supplies; ClosePilot records them and **does not claim to have inspected the documents behind them**.
+- **Requesting evidence clears the current recommendation**, so a recommendation made before the new evidence existed is never shown as current; the investigator must recommend again.
+- **Unauthorised attempts on an existing case are refused and logged** as `ACCESS_DENIED` events; the case is unchanged. An `ACCESS_DENIED` event cannot carry a decision, recommendation or evidence, so it cannot be used to slip agent-attributed decision data into the log. An unauthorised attempt to *open* a case is refused but **not** logged, because no case exists to attach the event to. Invalid transitions and invalid input are refused without an event.
+- **Human actor names** must be non-blank, at most 64 characters, free of control characters and different from every agent name, so the audit trail never shows an agent name on a human action.
+- **Trust boundary:** the domain layer guarantees that an *agent* actor cannot decide. Proving that a *human* actor really is the human is done by the interface layer (planned: a reviewer secret held only in the human's shell, plus `decide` disallowed as a tool for agents).
+
+## Audit log
+
+[`src/closepilot/audit.py`](src/closepilot/audit.py) writes one JSON object per line (all spec fields plus `details` and `prev_event_hash`). The log is the single source of truth: case state is rebuilt by replaying events, and every replayed event is re-checked against the workflow rules.
+
+- **Append-only API, hash-chained.** Each event stores the SHA-256 of the previous line, so editing, deleting, reordering or truncating earlier lines is detected and reading fails closed.
+- **Locked writes.** An exclusive lock (a `<log name>.lock` directory next to the log) prevents concurrent commands from interleaving lines. A command waits up to 5 seconds for the lock, then fails without writing anything.
+- **Stale lock recovery.** If a ClosePilot process is killed while holding the lock, the lock directory remains and every later command fails with `audit log is locked (...)`. ClosePilot never removes a lock it did not create, because it cannot tell a crashed process from a slow one. Recovery is a human action: confirm that no ClosePilot command is running, then delete the `.lock` directory named in the error. The log itself stays consistent, because a write either completes or is rolled back.
+- **Durable or not at all.** Writes are fsynced. A failed write is rolled back and raised, so an action is never reported as recorded when it was not.
+- **Honest limits.** This is application-level tamper *evidence*, not immutable or cryptographically secured storage: anyone with write access can replace the whole file, and a rule-respecting edit of the *newest* line is not detectable by the chain alone (rule-breaking edits, such as a forged agent approval, are still rejected on replay).
 
 ## Licence
 
