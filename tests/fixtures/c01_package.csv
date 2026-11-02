@@ -1,0 +1,9 @@
+record_id,submission_id,period,entity,cost_centre,account,actual,forecast,currency,mapping_status,commentary,submitted_by_role
+EX-001,FC-2026-10,2026-10,NLG-PL,CC-FLEET,6100-FUEL,100000.00,100000.00,EUR,VALID,On plan.,Regional Controller
+EX-002,FC-2026-10,2026-10,NLG-PL,CC-WAREHOUSE,6200-RENT,110000.00,100000.00,EUR,VALID,Indexation uplift.,Regional Controller
+EX-003,FC-2026-10,2026-10,NLG-DE,CC-EVENTS,6400-MARKETING,108200.00,95000.00,EUR,VALID,,Regional Controller
+EX-004,FC-2026-10,2026-10,NLG-DE,CC-FLEET,6110-MAINTENANCE,110010.00,100000.00,EUR,VALID,Unplanned repairs.,Regional Controller
+EX-005,FC-2026-10,2026-10,NLG-US,CC-LINEHAUL,6300-SUBCONTRACT,85000.00,100000.00,USD,VALID,Volume shortfall.,Regional Controller
+EX-006,FC-2026-10,2026-10,NLG-US,CC-IT,6500-SOFTWARE,2500.00,0.00,USD,VALID,One-off licence.,Regional Controller
+EX-007,FC-2026-10,2026-10,NLG-PL,CC-TRAINING,6600-TRAINING,0.00,0.00,PLN,VALID,No activity.,Regional Controller
+EX-008,FC-2026-10,2026-10,NLG-PL,CC-FLEET,4900-REBATES,-50000.00,-40000.00,PLN,VALID,Higher rebate.,Regional Controller

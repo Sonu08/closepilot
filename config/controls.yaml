@@ -1,0 +1,18 @@
+# ClosePilot control configuration.
+# Illustrative project settings for a fictional organisation (Northstar Logistics Group).
+# These are NOT real company policy. Change only by explicit human action.
+
+variance_warning_pct: 5
+variance_review_pct: 10
+commentary_required_pct: 5
+
+allowed_currencies:
+  - EUR
+  - USD
+  - PLN
+
+allowed_periods:
+  - "2026-10"
+
+mapping_valid_values:
+  - VALID
