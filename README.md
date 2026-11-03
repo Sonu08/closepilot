@@ -165,6 +165,10 @@ In PowerShell, set the secret without echoing it: `$env:CLOSEPILOT_REVIEWER_SECR
   - **Agent views are unchecked.** `closepilot agent …`, `reviewer cases` and `reviewer case` cannot check seals, so trust only `export`, `summary` and the case-changing commands.
   - **Starting over is not detectable from inside.** Deleting both the log and the reviewer file leaves no trace in either; the log hash in an exported decision record is the outside anchor.
 
+## Security
+
+What ClosePilot protects, against whom, and what it does not: [`docs/threat-model.md`](docs/threat-model.md), including the release checks run before publishing.
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
