@@ -174,6 +174,7 @@ Expected (if only EX-003 has been decided):
 | Reviewer command exits 5 | The secret is not set in *this* terminal; set it as above. Note that the attempt itself is recorded as `ACCESS_DENIED` (harmless; it shows under *Refused attempts* in the decision record) |
 | `closepilot` is not recognised, or `read`/`export` fail | You are in PowerShell: follow *Using PowerShell* |
 | Commands typed but the log does not change | They went into a Claude Code prompt, not a shell. Run them in a terminal |
+| "the reviewer secret does not match", and the reviewer file is unchanged | You mistyped or forgot the secret. Check Caps Lock and the keyboard layout and try again; retries record nothing. A forgotten secret cannot be recovered or reset in place, by design: decisions already made stay valid, but no new reviewer decision can be recorded on that log. Start a fresh run with a new secret, and keep it somewhere safe outside the repository |
 | Any command exits 4 | Stop: the audit log or reviewer file failed an integrity check. Do not continue the demo on that log |
 | `audit log is locked` | Confirm nothing is running, then remove `out/audit.jsonl.lock` |
 | Switch is unavailable | Run the same scenes locally: `closepilot agent --as control-analyst validate FC-2026-10` (and `open-cases`, `handoff`), `closepilot agent --as exception-investigator investigate EX-003` (and `request-evidence`, `recommend`), then the reviewer commands above |
