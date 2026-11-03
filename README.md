@@ -6,6 +6,23 @@ ClosePilot is a collaborative AI finance-control room where agents validate and 
 
 **Status:** working end to end — deterministic controls, a Switch room with two agents, deterministic investigation, human-only approval behind a reviewer check, an append-only audit log and decision-record export. All data is synthetic and describes the fictional *Northstar Logistics Group*.
 
+## At a glance
+
+- **Problem:** month-end exception review is slow because validation, explanation, evidence and approval happen in disconnected spreadsheets and messages.
+- **What the demo shows:** a human starts a review in a Switch room. The Control Analyst agent runs deterministic controls, hands the material exception (EX-003, +13.89%) to the Exception Investigator agent with a real `@mention`, the investigator asks for evidence, and the human attaches it, decides and exports an auditable decision record. See [docs/demo-script.md](docs/demo-script.md).
+- **Why Switch:** one shared room for people and agents, real agent-to-agent hand-offs, and sessions and addressing managed by Switch. ClosePilot enforces what Switch leaves to the application: who may decide.
+- **What stays human:** approving, rejecting, closing, attaching evidence and adding commentary.
+- **Reproduce it:** Quick start below, then *Switch room* for the room, or run every scene locally without Switch (demo script, last section).
+
+| Document | What it covers |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | Components, deterministic vs generative split, case states, data and audit flow, failure handling, Switch's role |
+| [docs/demo-script.md](docs/demo-script.md) | The ten-scene demo with expected outputs |
+| [docs/judging-map.md](docs/judging-map.md) | Evidence for each judging criterion, and what was verified live |
+| [docs/threat-model.md](docs/threat-model.md) | Threats, mitigations, tests, residual risks, release checks |
+| [docs/limitations.md](docs/limitations.md) | What ClosePilot does not do |
+| [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) | How to contribute; how to report a vulnerability |
+
 ## Quick start (development)
 
 ```bash
