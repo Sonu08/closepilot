@@ -60,6 +60,7 @@ from closepilot.models import (
     CONTROL_IDS,
     EXCEPTION_INVESTIGATOR,
     KNOWN_AGENTS,
+    REVIEWER_RECORD,
     Action,
     Actor,
     ActorType,
@@ -103,6 +104,10 @@ class EvidenceRequired(WorkflowError):
 
 
 class InvalidInput(WorkflowError):
+    pass
+
+
+class AlreadyEnrolled(InvalidTransition):
     pass
 
 
@@ -221,9 +226,9 @@ def check_human_name(name: str) -> None:
 def assert_agent_state_invariant(event: AuditEvent) -> None:
     """Hard invariant, independent of the rule table: agents stay in agent states."""
     if event.actor_type is not ActorType.HUMAN and event.new_state not in AGENT_STATES:
+        target = "no state" if event.new_state is None else event.new_state.value
         raise PermissionDenied(
-            f"only a human may move a case to {event.new_state.value}; "
-            f"{event.actor_name!r} is an agent"
+            f"only a human may move a case to {target}; {event.actor_name!r} is an agent"
         )
     if event.actor_type is not ActorType.HUMAN and event.human_decision is not None:
         raise PermissionDenied("only a human may record a decision")
@@ -259,11 +264,44 @@ def _check_access_denied(case: Case, event: AuditEvent) -> None:
         )
 
 
+_FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
+
+
+def check_enrolment(event: AuditEvent) -> None:
+    """The reviewer enrolment has one fixed shape: a named human, the reserved record,
+    no state, no case data, and only the reviewer's key fingerprint (plus its seal)."""
+    if event.action is not Action.ENROL_REVIEWER:
+        raise InvalidTransition("not a reviewer enrolment")
+    if event.actor_type is not ActorType.HUMAN:
+        raise PermissionDenied("only a human may enrol as the reviewer")
+    check_human_name(event.actor_name)
+    if event.case_id != REVIEWER_RECORD or event.submission_id:
+        raise InvalidTransition(f"a reviewer enrolment belongs to {REVIEWER_RECORD} only")
+    if event.previous_state is not None or event.new_state is not None:
+        raise InvalidTransition("a reviewer enrolment has no case state")
+    if (
+        event.control_id is not None
+        or event.evidence_references
+        or event.recommendation is not None
+        or event.human_decision is not None
+    ):
+        raise InvalidTransition("a reviewer enrolment may not carry case data")
+    fingerprint = event.details.get("fingerprint")
+    if not set(event.details) <= {"fingerprint", "seal"} or not (
+        isinstance(fingerprint, str) and _FINGERPRINT_RE.fullmatch(fingerprint)
+    ):
+        raise InvalidInput("a reviewer enrolment carries exactly a 64-hex-digit fingerprint")
+
+
 def apply_event(case: Case | None, event: AuditEvent) -> Case:
     """Validate ``event`` against ``case`` and return the resulting case.
 
     Raises a :class:`WorkflowError` subclass if the event is not allowed.
     """
+    if event.action is Action.ENROL_REVIEWER or event.case_id == REVIEWER_RECORD:
+        raise InvalidTransition("the reviewer enrolment is not a case event")
+    if event.new_state is None:
+        raise InvalidTransition("a case event must name the case's new state")
     current = None if case is None else case.state
     if event.action is Action.ACCESS_DENIED:
         if case is None:
@@ -406,10 +444,21 @@ def _check_snapshot(refs: tuple[str, ...], case: Case) -> None:
 
 
 def replay(events: Iterable[AuditEvent]) -> dict[str, Case]:
-    """Rebuild every case from the log, re-validating each event against the rules."""
+    """Rebuild every case from the log, re-validating each event against the rules.
+
+    The reviewer enrolment is checked here too: at most one per log, so a second
+    reviewer can never be enrolled after the first, even by a hand-written line.
+    """
     cases: dict[str, Case] = {}
+    enrolled = False
     for event in events:
         try:
+            if event.action is Action.ENROL_REVIEWER:
+                if enrolled:
+                    raise AlreadyEnrolled("a reviewer is already enrolled in this log")
+                check_enrolment(event)
+                enrolled = True
+                continue
             cases[event.case_id] = apply_event(cases.get(event.case_id), event)
         except WorkflowError as exc:
             raise AuditIntegrityError(
@@ -479,6 +528,40 @@ class CaseWorkflow:
         if case is None:
             raise CaseNotFound(f"case {case_id!r} does not exist")
         return case
+
+    def enrol_reviewer(
+        self, actor: Actor, fingerprint: str, before_append: Callable[[], None]
+    ) -> AuditEvent:
+        """Record, once per log, which reviewer may seal human events.
+
+        Under the log lock: refuse if a reviewer is already enrolled, then call
+        ``before_append`` (which writes the reviewer file), then append the sealed
+        enrolment. A second enrolment is refused here and rejected by replay, so a
+        replaced reviewer file can never be enrolled after the real one.
+        """
+        with self.log.locked():
+            events = self.log.read()
+            replay(events)  # a log that fails its checks enrols no one
+            if any(e.action is Action.ENROL_REVIEWER for e in events):
+                raise AlreadyEnrolled(
+                    "a reviewer is already enrolled in this audit log; if that was not you, "
+                    "act on nothing until a human has checked the log"
+                )
+            event = AuditEvent(
+                event_id="",
+                timestamp_utc=self._timestamp(),
+                submission_id="",
+                case_id=REVIEWER_RECORD,
+                actor_type=actor.actor_type,
+                actor_name=actor.name,
+                action=Action.ENROL_REVIEWER,
+                previous_state=None,
+                new_state=None,
+                details={"fingerprint": fingerprint},
+            )
+            check_enrolment(event)
+            before_append()
+            return self.log.append(event, self._sealer)
 
     def record_denied(self, actor: Actor, case_id: str, attempted: Action, reason: str) -> None:
         """Record a refused attempt that never reached the rule engine (for example a

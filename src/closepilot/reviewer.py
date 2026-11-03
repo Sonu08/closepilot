@@ -18,6 +18,13 @@ command that reads or changes cases first checks the seal of every human event i
 log. A forged line has no valid seal, and a re-initialised reviewer cannot reproduce the
 seals of the real one, so the reviewer interface refuses to act on such a log.
 
+Enrolment: ``closepilot reviewer init`` also appends one ``ENROL_REVIEWER`` event, holding a
+fingerprint of the seal key, to the hash-chained log. Replay allows one enrolment per log,
+and every reviewer command checks that its reviewer is the enrolled one, so a replaced
+reviewer file is refused even before the real reviewer's first action. Someone who enrols
+before the real reviewer is not prevented, but the real reviewer's own ``init`` is then
+refused, so it is noticed before anything is done.
+
 Limits, stated plainly: this is a local demonstration control, not identity management.
 Anyone who can run commands as the same operating-system user *and* knows the secret is
 treated as the reviewer. Agent-side views (``closepilot agent``) cannot check seals, since
@@ -54,6 +61,7 @@ _SCRYPT = {"n": 2**14, "r": 8, "p": 1, "dklen": 32}
 # The seal key is a second derivation of the secret, so the stored hash reveals nothing
 # about it.
 _SEAL_SALT_SUFFIX = b"closepilot-seal-v1"
+_FINGERPRINT_LABEL = b"closepilot-reviewer-enrolment-v1"
 
 
 class ReviewerError(Exception):
@@ -71,8 +79,24 @@ class Reviewer:
             raise ReviewerError("this reviewer has no seal key")
         return replace(event, details={**event.details, SEAL_FIELD: _seal(self.seal_key, event)})
 
+    @property
+    def fingerprint(self) -> str:
+        """Identifies the seal key without revealing it; recorded at enrolment."""
+        return hmac.new(self.seal_key, _FINGERPRINT_LABEL, hashlib.sha256).hexdigest()
+
     def verify_log(self, events: Sequence[AuditEvent]) -> None:
-        """Fail closed unless every human event carries this reviewer's valid seal."""
+        """Fail closed unless this reviewer is the one enrolled in the log and every human
+        event carries this reviewer's valid seal."""
+        enrolments = [e for e in events if e.action is Action.ENROL_REVIEWER]
+        if not enrolments:
+            raise AuditIntegrityError(
+                "no reviewer is enrolled in this audit log; run 'closepilot reviewer init'"
+            )
+        if not hmac.compare_digest(str(enrolments[0].details.get("fingerprint")), self.fingerprint):
+            raise AuditIntegrityError(
+                "the audit log enrols a different reviewer than the reviewer file: the file "
+                "may have been replaced. Nothing was done; a human must inspect the log"
+            )
         bad = [
             e.event_id
             for e in events
@@ -113,19 +137,40 @@ def _check_secret(secret: str | None) -> str:
     return secret
 
 
-def init_reviewer(path: Path, name: str, secret: str | None) -> Reviewer:
-    """Create the reviewer file. Refuses to overwrite an existing one."""
+@dataclass(frozen=True)
+class NewReviewer:
+    """A reviewer prepared by :func:`prepare_reviewer` but not yet written."""
+
+    reviewer: Reviewer
+    record: dict[str, object] = field(repr=False)
+
+    def write(self, path: Path) -> None:
+        """Create the reviewer file. Refuses to overwrite an existing one."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with path.open("x", encoding="utf-8") as handle:
+                json.dump(self.record, handle, indent=2)
+        except FileExistsError as exc:
+            raise ReviewerError(_already_set_up(path)) from exc
+        with contextlib.suppress(OSError):  # best effort; Windows ignores most mode bits
+            os.chmod(path, 0o600)
+
+
+def _already_set_up(path: Path) -> str:
+    return f"a reviewer is already set up in {path}; delete that file yourself to start over"
+
+
+def prepare_reviewer(path: Path, name: str, secret: str | None) -> NewReviewer:
+    """Check the name and secret and derive the keys, without writing anything."""
     secret = _check_secret(secret)
     try:
         check_human_name(name)
     except PermissionDenied as exc:
         raise ReviewerError(str(exc)) from exc
     if path.exists():
-        raise ReviewerError(
-            f"a reviewer is already set up in {path}; delete that file yourself to start over"
-        )
+        raise ReviewerError(_already_set_up(path))
     salt = secrets.token_bytes(SALT_BYTES)
-    record = {
+    record: dict[str, object] = {
         "version": 1,
         "name": name.strip(),
         "kdf": "scrypt",
@@ -133,12 +178,16 @@ def init_reviewer(path: Path, name: str, secret: str | None) -> Reviewer:
         "salt": salt.hex(),
         "hash": _derive(secret, salt, **_SCRYPT).hex(),
     }
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("x", encoding="utf-8") as handle:
-        json.dump(record, handle, indent=2)
-    with contextlib.suppress(OSError):  # best effort; Windows ignores most mode bits
-        os.chmod(path, 0o600)
-    return Reviewer(name=name.strip())
+    seal_key = _derive(secret, salt + _SEAL_SALT_SUFFIX, **_SCRYPT)
+    return NewReviewer(Reviewer(name=name.strip(), seal_key=seal_key), record)
+
+
+def init_reviewer(path: Path, name: str, secret: str | None) -> Reviewer:
+    """Create the reviewer file only. ``closepilot reviewer init`` also enrols the
+    reviewer in the audit log, without which no reviewer command will act."""
+    new = prepare_reviewer(path, name, secret)
+    new.write(path)
+    return new.reviewer
 
 
 def verify_reviewer(path: Path, secret: str | None) -> Reviewer:

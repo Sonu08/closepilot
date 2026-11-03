@@ -26,7 +26,7 @@ from closepilot.models import (
 )
 from closepilot.report import decision_record, decision_record_markdown
 from closepilot.reviewer import ReviewerError, init_reviewer, verify_reviewer
-from closepilot.reviewer_cli import EXIT_OK, EXIT_REVIEWER_CHECK_FAILED
+from closepilot.reviewer_cli import EXIT_OK, EXIT_REFUSED, EXIT_REVIEWER_CHECK_FAILED
 from closepilot.validation import validate_package
 from closepilot.workflow import CaseWorkflow
 
@@ -125,14 +125,18 @@ def test_reinitialised_reviewer_cannot_decide(
     home: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _ex009_ready_with_human_comment(home, capsys, monkeypatch)
-    # Replace the reviewer file and set up a new reviewer with a secret of one's own.
-    (home / ".closepilot" / "reviewer.json").rename(home / ".closepilot" / "old.json")
+    # Replace the reviewer file and set up a new reviewer with a secret of one's own:
+    # through the CLI the log refuses a second enrolment ...
+    path = home / ".closepilot" / "reviewer.json"
+    path.rename(home / ".closepilot" / "old.json")
     monkeypatch.setenv("CLOSEPILOT_REVIEWER_SECRET", ATTACKER_SECRET)
-    assert _reviewer(home, "init", "--name", "Alex Reviewer", capsys=capsys)[0] == EXIT_OK
+    assert _reviewer(home, "init", "--name", "Alex Reviewer", capsys=capsys)[0] == EXIT_REFUSED
+    # ... and a reviewer file written directly does not match the enrolled reviewer.
+    init_reviewer(path, "Alex Reviewer", ATTACKER_SECRET)
     before = len(_log(home).read())
     code, _, err = _reviewer(home, "decide", "EX-009", "reject", "--rationale", "x", capsys=capsys)
     assert code == EXIT_AUDIT_ERROR
-    assert "not sealed by the current reviewer" in err
+    assert "enrols a different reviewer" in err
     assert len(_log(home).read()) == before
 
 

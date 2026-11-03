@@ -87,7 +87,7 @@ def event_to_json(event: AuditEvent) -> str:
         "actor_name": event.actor_name,
         "action": event.action.value,
         "previous_state": None if event.previous_state is None else event.previous_state.value,
-        "new_state": event.new_state.value,
+        "new_state": None if event.new_state is None else event.new_state.value,
         "control_id": event.control_id,
         "evidence_references": list(event.evidence_references),
         "recommendation": None if event.recommendation is None else event.recommendation.value,
@@ -139,6 +139,7 @@ def event_from_json(line: str) -> AuditEvent:
     if not isinstance(refs, list) or not all(isinstance(r, str) for r in refs):
         raise TypeError("evidence_references must be a list of strings")
     previous = _optional_str(data, "previous_state")
+    new = _optional_str(data, "new_state")
     recommendation = _optional_str(data, "recommendation")
     decision = _optional_str(data, "human_decision")
     return AuditEvent(
@@ -150,7 +151,7 @@ def event_from_json(line: str) -> AuditEvent:
         actor_name=_str(data, "actor_name"),
         action=Action(_str(data, "action")),
         previous_state=None if previous is None else CaseState(previous),
-        new_state=CaseState(_str(data, "new_state")),
+        new_state=None if new is None else CaseState(new),
         control_id=_optional_str(data, "control_id"),
         evidence_references=tuple(refs),
         recommendation=None if recommendation is None else Recommendation(recommendation),

@@ -40,7 +40,7 @@ from closepilot.reviewer import (
     SECRET_ENV,
     Reviewer,
     ReviewerError,
-    init_reviewer,
+    prepare_reviewer,
     verify_reviewer,
 )
 from closepilot.submissions import SubmissionError
@@ -79,8 +79,30 @@ def _print(payload: object) -> int:
 
 
 def _init(args: argparse.Namespace) -> int:
-    reviewer = init_reviewer(args.home / REVIEWER_FILE, args.name, os.environ.get(SECRET_ENV))
-    return _print({"reviewer": reviewer.name, "file": str(REVIEWER_FILE)})
+    """Write the reviewer file and enrol the reviewer in the audit log, together: the file
+    is written only once the log is known to have no reviewer, and removed again if the
+    enrolment cannot be appended."""
+    path = args.home / REVIEWER_FILE
+    new = prepare_reviewer(path, args.name, os.environ.get(SECRET_ENV))
+    wf = _workflow(args.home, new.reviewer)
+    written = False
+
+    def write_file() -> None:
+        nonlocal written
+        new.write(path)
+        written = True
+
+    try:
+        event = wf.enrol_reviewer(
+            Actor(ActorType.HUMAN, new.reviewer.name), new.reviewer.fingerprint, write_file
+        )
+    except BaseException:
+        if written:
+            path.unlink(missing_ok=True)
+        raise
+    return _print(
+        {"reviewer": new.reviewer.name, "file": str(REVIEWER_FILE), "enrolment": event.event_id}
+    )
 
 
 def _cases(args: argparse.Namespace) -> int:

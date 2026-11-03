@@ -154,6 +154,8 @@ class Action(Enum):
     DECIDE = "DECIDE"
     CLOSE = "CLOSE"
     ACCESS_DENIED = "ACCESS_DENIED"
+    #: Not a case action: records, once per log, which reviewer may seal human events.
+    ENROL_REVIEWER = "ENROL_REVIEWER"
 
 
 class Recommendation(Enum):
@@ -176,13 +178,19 @@ CONTROL_ANALYST = Actor(ActorType.AGENT, "control-analyst")
 EXCEPTION_INVESTIGATOR = Actor(ActorType.AGENT, "exception-investigator")
 KNOWN_AGENTS: frozenset[str] = frozenset({CONTROL_ANALYST.name, EXCEPTION_INVESTIGATOR.name})
 HUMAN_ROLE = "Finance Reviewer"
+#: ``case_id`` of the reviewer enrolment event. Not a valid case ID (case IDs start with a
+#: letter or digit), so no case can ever collide with it.
+REVIEWER_RECORD = "#reviewer"
 
 DetailValue = str | bool | list[str]
 
 
 @dataclass(frozen=True)
 class AuditEvent:
-    """One append-only audit record. ``details`` carries action-specific data."""
+    """One append-only audit record. ``details`` carries action-specific data.
+
+    ``new_state`` is ``None`` only for the reviewer enrolment, which is not a case event.
+    """
 
     event_id: str
     timestamp_utc: str
@@ -192,7 +200,7 @@ class AuditEvent:
     actor_name: str
     action: Action
     previous_state: CaseState | None
-    new_state: CaseState
+    new_state: CaseState | None
     control_id: str | None = None
     evidence_references: tuple[str, ...] = ()
     recommendation: Recommendation | None = None
