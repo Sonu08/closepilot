@@ -14,6 +14,7 @@ from closepilot.agent_cli import add_agent_parser
 from closepilot.config import ConfigError, load_config
 from closepilot.ingestion import IngestionError, load_package
 from closepilot.models import RecordResult
+from closepilot.reviewer_cli import add_reviewer_parser
 from closepilot.validation import PackageSummary, summarise, validate_package
 
 DEFAULT_CONFIG = Path("config/controls.yaml")
@@ -148,6 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--json", action="store_true", help="emit structured JSON")
     validate.set_defaults(handler=_cmd_validate)
     add_agent_parser(sub)
+    add_reviewer_parser(sub)
     return parser
 
 

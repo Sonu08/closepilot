@@ -263,5 +263,13 @@ class AuditLog:
         return stored
 
 
+def last_event_hash(events: list[AuditEvent]) -> str:
+    """SHA-256 of the newest stored line (its canonical form), or the genesis hash.
+
+    Recording this value outside the log (for example in an exported decision record)
+    anchors the chain: a later edit of the newest line no longer matches it."""
+    return _line_hash(event_to_json(events[-1])) if events else GENESIS_HASH
+
+
 def _event_id(number: int) -> str:
     return f"EVT-{number:06d}"

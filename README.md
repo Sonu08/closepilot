@@ -4,7 +4,7 @@ ClosePilot is a collaborative AI finance-control room where agents validate and 
 
 > **ClosePilot does not allow an AI agent to approve material finance exceptions.** Agents calculate, investigate and recommend; a human reviewer makes and records the final decision.
 
-**Status:** work in progress (Phase 4 — deterministic controls, human-only approval workflow, append-only audit log, Switch room with two agents). All data is synthetic and describes the fictional *Northstar Logistics Group*.
+**Status:** working end to end — deterministic controls, a Switch room with two agents, deterministic investigation, human-only approval behind a reviewer check, an append-only audit log and decision-record export. All data is synthetic and describes the fictional *Northstar Logistics Group*.
 
 ## Quick start (development)
 
@@ -119,6 +119,46 @@ The control analyst hands work to the investigator with a real `@exception-inves
 - Agent actions are written to `out/audit.jsonl` (git-ignored). Exit code `3` means the workflow refused the action; a refusal on an existing case is logged as `ACCESS_DENIED`.
 
 **Limits, stated plainly.** The per-agent permission files are a second layer, not a sandbox: with Auto mode on, Claude Code's own review decides about commands outside the allow and deny lists. The guarantee that no agent can approve or reject comes from the workflow layer. Switch credentials live in `.switch/` folders, which are git-ignored.
+
+## Deterministic investigation
+
+`closepilot agent investigate <CASE_ID>` ([`investigation.py`](src/closepilot/investigation.py)) gives the Exception Investigator verified facts instead of leaving it to infer them: mapping validity, duplicate rows, currency and period, field integrity, source commentary, evidence status, and the record's share of its entity / cost-centre / currency variance (EX-003: 96.35% of the NLG-DE / CC-EVENTS / EUR variance).
+
+It classifies the case and suggests a next step by fixed rules:
+
+| Case | Classification | Suggested next step |
+|---|---|---|
+| Any C03 / C04 / C06 / C07 finding | `DATA_QUALITY` | `RECOMMEND_REJECT` (correct and resubmit) |
+| Variance, evidence required but not attached | `VARIANCE` | `REQUEST_EVIDENCE` (lists what is `missing`) |
+| Variance, commentary required but not provided | `VARIANCE` | `REQUEST_COMMENTARY` |
+| Variance, commentary and evidence satisfied | `VARIANCE` | `RECOMMEND_APPROVE` |
+
+Commentary counts as provided when the source record had it or the Finance Reviewer added it to the case. The agent explains and recommends; the facts and the rule come from Python.
+
+## Human reviewer commands
+
+The Finance Reviewer works from their own shell with `closepilot reviewer …` ([`reviewer_cli.py`](src/closepilot/reviewer_cli.py)).
+
+```bash
+# Once: choose a secret of at least 12 characters and keep it only in your shell.
+read -rs CLOSEPILOT_REVIEWER_SECRET && export CLOSEPILOT_REVIEWER_SECRET   # Git Bash
+closepilot reviewer init --name "Alex Reviewer"
+
+closepilot reviewer comment EX-003 --text "Approved customer-event programme."
+closepilot reviewer attach-evidence EX-003 EVD-2026-10-003 --note "Programme approval memo"
+closepilot reviewer decide EX-003 approve --rationale "I reviewed the synthetic evidence."
+closepilot reviewer close EX-003
+closepilot reviewer export EX-003          # writes out/decisions/EX-003.{md,json}
+closepilot reviewer summary FC-2026-10     # final package summary
+```
+
+In PowerShell, set the secret without echoing it: `$env:CLOSEPILOT_REVIEWER_SECRET = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR((Read-Host -AsSecureString)))`.
+
+- **Reviewer check.** `init` stores your name and a salted scrypt hash of the secret in `.closepilot/reviewer.json` (git-ignored); the secret itself is never written. Every command that changes a case (`comment`, `attach-evidence`, `request-evidence`, `rework`, `decide`, `close`) needs the same secret in `CLOSEPILOT_REVIEWER_SECRET`. Read-only commands (`cases`, `case`, `export`, `summary`) do not.
+- **Why agents cannot pass it.** Switch starts agent sessions with a fixed set of environment variables, so the secret in your shell never reaches them; their permission files allow only the agent wrapper, which always runs `closepilot agent`; and the stored hash cannot be reversed.
+- **Failed checks are recorded.** A wrong or missing secret is refused (exit code `5`) and logged as `ACCESS_DENIED` by an `UNVERIFIED` actor, which no workflow rule permits to do anything.
+- **Decision record.** `export` writes the automated finding, the deterministic investigation (recomputed), hand-offs, evidence requests, commentary, evidence references, recommendations, the human decision with its rationale, refused attempts and the audit trail, including the hash of the log's newest event. Recording that hash elsewhere anchors the log against a later edit of its newest line.
+- **Limits.** This is a local demonstration control, not identity management: anyone who runs commands as the same operating-system user *and* knows the secret is treated as the reviewer. Shell history may keep a secret typed on the command line, so set it with the prompts above.
 
 ## Licence
 

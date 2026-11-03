@@ -138,6 +138,9 @@ DECIDED_STATES: frozenset[CaseState] = frozenset(
 class ActorType(Enum):
     HUMAN = "HUMAN"
     AGENT = "AGENT"
+    #: Someone at the reviewer interface who failed the reviewer check. Such an actor may
+    #: do nothing; it exists only so a refused attempt can be recorded honestly.
+    UNVERIFIED = "UNVERIFIED"
 
 
 class Action(Enum):

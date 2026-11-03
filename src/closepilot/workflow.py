@@ -188,6 +188,8 @@ def _identifier(value: str, name: str) -> str:
 
 def _authorise(event: AuditEvent, rule: _Rule) -> None:
     action = event.action.value
+    if event.actor_type is ActorType.UNVERIFIED:
+        raise PermissionDenied(f"an unverified actor may not perform {action}")
     if event.actor_type is ActorType.AGENT:
         if event.actor_name not in KNOWN_AGENTS:
             raise PermissionDenied(f"unknown agent {event.actor_name!r} may not perform {action}")
@@ -196,13 +198,13 @@ def _authorise(event: AuditEvent, rule: _Rule) -> None:
     elif not rule.humans:
         raise PermissionDenied(f"{action} is performed by an agent, not a human")
     else:
-        _check_human_name(event.actor_name)
+        check_human_name(event.actor_name)
 
 
 MAX_ACTOR_NAME_CHARS = 64
 
 
-def _check_human_name(name: str) -> None:
+def check_human_name(name: str) -> None:
     """A human actor needs a plain, distinct name so the audit trail is unambiguous."""
     if not name.strip():
         raise PermissionDenied("a human actor must be named")
@@ -449,6 +451,32 @@ class CaseWorkflow:
         if case is None:
             raise CaseNotFound(f"case {case_id!r} does not exist")
         return case
+
+    def record_denied(self, actor: Actor, case_id: str, attempted: Action, reason: str) -> None:
+        """Record a refused attempt that never reached the rule engine (for example a
+        failed reviewer check) as an ACCESS_DENIED event on an existing case."""
+        if attempted is Action.ACCESS_DENIED:
+            raise InvalidInput("attempted action must be a real action")
+        with self.log.locked():
+            case = replay(self.log.read()).get(case_id)
+            if case is None:
+                raise CaseNotFound(f"case {case_id!r} does not exist")
+            event = AuditEvent(
+                event_id="",
+                timestamp_utc=self._timestamp(),
+                submission_id=case.submission_id,
+                case_id=case_id,
+                actor_type=actor.actor_type,
+                actor_name=actor.name,
+                action=Action.ACCESS_DENIED,
+                previous_state=case.state,
+                new_state=case.state,
+                control_id=case.control_ids[0],
+                rationale=_text(reason, "reason"),
+                details={"attempted_action": attempted.value},
+            )
+            apply_event(case, event)  # validates the denial record itself
+            self.log.append(event)
 
     def _record(
         self,
