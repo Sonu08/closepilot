@@ -18,7 +18,7 @@ Every number and state below is produced by Python and is deterministic; the out
   mv .closepilot/reviewer.json "out/archive/reviewer-$(date +%Y%m%d-%H%M).json"
   ```
   In Switch Console, stop both agents' sessions so they start the demo without earlier context.
-- **Continue the existing live run.** If scenes 1–4 have already run live (cases open, EX-003 awaiting evidence), skip to scene 5.
+- **Continue the existing live run.** If scenes 1–4 have already run live (cases open, EX-003 awaiting evidence), skip to scene 5. If EX-003 is already `CLOSED`, the golden case is finished on that log: start a fresh run to show it again.
 
 **Set the reviewer secret** (the human types it; it is never shown or stored in clear):
 
