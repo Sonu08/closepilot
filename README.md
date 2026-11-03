@@ -1,5 +1,7 @@
 # ClosePilot: AI Finance Control Room
 
+[![CI](https://github.com/Sonu08/closepilot/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Sonu08/closepilot/actions/workflows/ci.yml)
+
 ClosePilot is a collaborative AI finance-control room where agents validate and investigate synthetic close exceptions, while humans retain final approval authority.
 
 > **ClosePilot does not allow an AI agent to approve material finance exceptions.** Agents calculate, investigate and recommend; a human reviewer makes and records the final decision.

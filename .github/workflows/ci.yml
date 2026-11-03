@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+
+      - name: Tests
+        run: python -m pytest
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Format
+        run: python -m ruff format --check .
+
+      - name: Types (source)
+        run: python -m mypy src
+
+      - name: Types (source and tests)
+        run: python -m mypy
+
+      - name: Golden output matches the committed fixture
+        run: |
+          python -m closepilot.cli validate data/synthetic_close_package.csv --json > "$RUNNER_TEMP/live.json"
+          python - "$RUNNER_TEMP/live.json" <<'EOF'
+          import json, sys
+          live = json.load(open(sys.argv[1], encoding="utf-8"))
+          committed = json.load(open("samples/expected_results.json", encoding="utf-8"))
+          if live != committed:
+              sys.exit("live validation output differs from samples/expected_results.json")
+          print("golden output matches")
+          EOF
