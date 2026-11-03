@@ -138,11 +138,18 @@ def _quote(text: object) -> str:
     return "\n".join(f"> {line}" for line in lines)
 
 
+def _inline(text: object) -> str:
+    """Render untrusted text inside a line as one inert code span: backticks replaced
+    and line breaks collapsed, so it can neither close the span nor start a block."""
+    flat = " ".join(str(text if text is not None else "").replace("`", "'").split())
+    return f"`{flat}`"
+
+
 def decision_record_markdown(record: Mapping[str, Any]) -> str:
     out: list[str] = [
         f"# Decision record: {record['case_id']}",
         "",
-        f"- **Submission:** {record['submission_id']}",
+        f"- **Submission:** {_inline(record['submission_id'])}",
         f"- **Final state:** {record['final_state']}",
         f"- **Controls:** {', '.join(record['control_ids'])}",
         "",
@@ -150,7 +157,7 @@ def decision_record_markdown(record: Mapping[str, Any]) -> str:
         "",
         _quote(record["automated_finding"]["summary"]),
         "",
-        f"Opened by {record['automated_finding']['opened_by']} at "
+        f"Opened by {_inline(record['automated_finding']['opened_by'])} at "
         f"{record['automated_finding']['at']}. Evidence required by configuration: "
         f"{'yes' if record['automated_finding']['evidence_required_by_configuration'] else 'no'}.",
     ]
@@ -162,7 +169,8 @@ def decision_record_markdown(record: Mapping[str, Any]) -> str:
         conc = inv.get("cost_centre_concentration")
         if conc and conc.get("record_share_pct") is not None:
             out.append(
-                f"- Share of the {conc['entity']} / {conc['cost_centre']} / {conc['currency']} "
+                f"- Share of the {_inline(conc['entity'])} / {_inline(conc['cost_centre'])} / "
+                f"{_inline(conc['currency'])} "
                 f"variance: {conc['record_share_pct']}% "
                 f"({conc['record_variance']} of {conc['group_variance']})"
             )
@@ -174,12 +182,13 @@ def decision_record_markdown(record: Mapping[str, Any]) -> str:
         if record[key]:
             out += ["", f"## {title}", ""]
             for item in record[key]:
-                out += [f"{item['by']} at {item['at']}:", "", _quote(item[field]), ""]
+                out += [f"{_inline(item['by'])} at {item['at']}:", "", _quote(item[field]), ""]
     out += ["", "## Evidence", ""]
     if record["evidence"]:
         for item in record["evidence"]:
             out.append(
-                f"- `{item['reference']}`, attached by {item['attached_by']} at {item['at']}"
+                f"- {_inline(item['reference'])}, attached by "
+                f"{_inline(item['attached_by'])} at {item['at']}"
             )
     else:
         out.append("- None attached.")
@@ -188,7 +197,7 @@ def decision_record_markdown(record: Mapping[str, Any]) -> str:
         out += ["", "## Agent recommendations", ""]
         for item in record["recommendations"]:
             out += [
-                f"**{item['recommendation']}** by {item['by']} at {item['at']}:",
+                f"**{item['recommendation']}** by {_inline(item['by'])} at {item['at']}:",
                 "",
                 _quote(item["rationale"]),
                 "",
@@ -200,7 +209,7 @@ def decision_record_markdown(record: Mapping[str, Any]) -> str:
     else:
         out += [
             f"- **Decision:** {decision['decision']}",
-            f"- **Decided by:** {decision['decided_by']} ({decision['actor_type']})",
+            f"- **Decided by:** {_inline(decision['decided_by'])} ({decision['actor_type']})",
             f"- **At:** {decision['at']} (event {decision['event_id']})",
             f"- **Recommendation at the time:** {decision['recommendation_at_decision']}",
             f"- **Evidence at the time:** {', '.join(decision['evidence_at_decision']) or 'none'}",
@@ -210,12 +219,13 @@ def decision_record_markdown(record: Mapping[str, Any]) -> str:
             _quote(decision["rationale"]),
         ]
     if record["closed"]:
-        out += ["", f"Closed by {record['closed']['by']} at {record['closed']['at']}."]
+        out += ["", f"Closed by {_inline(record['closed']['by'])} at {record['closed']['at']}."]
     if record["refused_attempts"]:
         out += ["", "## Refused attempts", ""]
         for item in record["refused_attempts"]:
             out.append(
-                f"- {item['actor']} tried {item['attempted_action']} at {item['at']}: refused"
+                f"- {_inline(item['actor'])} tried {item['attempted_action']} "
+                f"at {item['at']}: refused"
             )
     audit = record["audit"]
     out += [

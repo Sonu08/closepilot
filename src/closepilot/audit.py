@@ -20,7 +20,7 @@ import hashlib
 import json
 import os
 import time
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -231,10 +231,14 @@ class AuditLog:
             expected_prev = _line_hash(line)
         return events
 
-    def append(self, event: AuditEvent) -> AuditEvent:
+    def append(
+        self, event: AuditEvent, finalise: Callable[[AuditEvent], AuditEvent] | None = None
+    ) -> AuditEvent:
         """Append ``event``, assigning its ``event_id`` and ``prev_event_hash``.
 
-        Must be called while holding :meth:`locked`. Returns the stored event.
+        ``finalise``, if given, is applied once both are assigned (for example to seal a
+        human event over its final position in the chain); it may change only
+        ``details``. Must be called while holding :meth:`locked`. Returns the stored event.
         """
         if not self._locked:
             raise AuditLockError("append requires the audit log lock")
@@ -242,6 +246,11 @@ class AuditLog:
         # Stored lines are canonical, so re-serialising the last event reproduces its bytes.
         prev = _line_hash(event_to_json(existing[-1])) if existing else GENESIS_HASH
         stored = replace(event, event_id=_event_id(len(existing) + 1), prev_event_hash=prev)
+        if finalise is not None:
+            finalised = finalise(stored)
+            if replace(finalised, details=stored.details) != stored:
+                raise AuditWriteError("finalise may change only an event's details")
+            stored = finalised
         line = event_to_json(stored)
         size_before = self.path.stat().st_size if self.path.exists() else 0
         try:

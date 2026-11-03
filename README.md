@@ -79,7 +79,7 @@ Records that are `REVIEW_REQUIRED` or `ERROR` become cases (one per `record_id`,
 - **Requesting evidence clears the current recommendation**, so a recommendation made before the new evidence existed is never shown as current; the investigator must recommend again.
 - **Unauthorised attempts on an existing case are refused and logged** as `ACCESS_DENIED` events; the case is unchanged. An `ACCESS_DENIED` event cannot carry a decision, recommendation or evidence, so it cannot be used to slip agent-attributed decision data into the log. An unauthorised attempt to *open* a case is refused but **not** logged, because no case exists to attach the event to. Invalid transitions and invalid input are refused without an event.
 - **Human actor names** must be non-blank, at most 64 characters, free of control characters and different from every agent name, so the audit trail never shows an agent name on a human action.
-- **Trust boundary:** the domain layer guarantees that an *agent* actor cannot decide. Proving that a *human* actor really is the human is done by the interface layer (planned: a reviewer secret held only in the human's shell, plus `decide` disallowed as a tool for agents).
+- **Trust boundary:** the domain layer guarantees that an *agent* actor cannot decide. Proving that a *human* actor really is the human is done by the reviewer interface: a secret held only in the human's shell, and a seal on every human event (see *Reviewer commands*).
 
 ## Audit log
 
@@ -115,7 +115,7 @@ The control analyst hands work to the investigator with a real `@exception-inves
 - Each agent works in its own folder, [`switch/agents/<name>/`](switch/agents), with a `CLAUDE.md` brief and a `.claude/settings.json` that allows exactly one command, `../../bin/closepilot-agent`, and denies file edits, web access and common shell escapes.
 - [`switch/bin/closepilot-agent`](switch/bin/closepilot-agent) takes the agent's identity from its working directory, not from an argument, and runs `closepilot agent --as <name> …` ([`agent_cli.py`](src/closepilot/agent_cli.py)), which prints JSON.
 - Agents name submissions by ID. [`config/submissions.yaml`](config/submissions.yaml) maps IDs to packages inside the repository; a path-like or unknown ID is refused, so a room message cannot point ClosePilot at an arbitrary file.
-- The agent CLI has no decide, close, attach-evidence or commentary command. Even if an agent ran Python directly, the workflow refuses those actions from any agent actor.
+- The agent CLI has no decide, close, attach-evidence or commentary command, and the workflow refuses those actions from any agent actor. An agent that ran Python directly could still try to pose as the human, by replacing the reviewer file or appending a hand-made line to the log; the sealed human events below make that detectable, and the reviewer commands then refuse to act.
 - Agent actions are written to `out/audit.jsonl` (git-ignored). Exit code `3` means the workflow refused the action; a refusal on an existing case is logged as `ACCESS_DENIED`.
 
 **Limits, stated plainly.** The per-agent permission files are a second layer, not a sandbox: with Auto mode on, Claude Code's own review decides about commands outside the allow and deny lists. The guarantee that no agent can approve or reject comes from the workflow layer. Switch credentials live in `.switch/` folders, which are git-ignored.
@@ -154,11 +154,15 @@ closepilot reviewer summary FC-2026-10     # final package summary
 
 In PowerShell, set the secret without echoing it: `$env:CLOSEPILOT_REVIEWER_SECRET = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR((Read-Host -AsSecureString)))`.
 
-- **Reviewer check.** `init` stores your name and a salted scrypt hash of the secret in `.closepilot/reviewer.json` (git-ignored); the secret itself is never written. Every command that changes a case (`comment`, `attach-evidence`, `request-evidence`, `rework`, `decide`, `close`) needs the same secret in `CLOSEPILOT_REVIEWER_SECRET`. Read-only commands (`cases`, `case`, `export`, `summary`) do not.
+- **Reviewer check.** `init` stores your name and a salted scrypt hash of the secret in `.closepilot/reviewer.json` (git-ignored); the secret itself is never written. Every command that changes a case (`comment`, `attach-evidence`, `request-evidence`, `rework`, `decide`, `close`) needs the same secret in `CLOSEPILOT_REVIEWER_SECRET`, and so do the authoritative outputs `export` and `summary`. Only the quick views `cases` and `case` do not.
+- **Sealed human events.** Every human event carries an HMAC whose key is derived from your secret and never stored. Before acting, and before `export` or `summary`, ClosePilot checks the seal of every human event in the log. A hand-made "human" line, or a reviewer set up again with a different secret, fails that check: the command stops with exit code `4` and changes nothing. The reviewer file's hashing parameters are fixed, so a tampered file is refused rather than weakening the check.
 - **Why agents cannot pass it.** Switch starts agent sessions with a fixed set of environment variables, so the secret in your shell never reaches them; their permission files allow only the agent wrapper, which always runs `closepilot agent`; and the stored hash cannot be reversed.
 - **Failed checks are recorded.** A wrong or missing secret is refused (exit code `5`) and logged as `ACCESS_DENIED` by an `UNVERIFIED` actor, which no workflow rule permits to do anything.
 - **Decision record.** `export` writes the automated finding, the deterministic investigation (recomputed), hand-offs, evidence requests, commentary, evidence references, recommendations, the human decision with its rationale, refused attempts and the audit trail, including the hash of the log's newest event. Recording that hash elsewhere anchors the log against a later edit of its newest line.
 - **Limits.** This is a local demonstration control, not identity management: anyone who runs commands as the same operating-system user *and* knows the secret is treated as the reviewer. Shell history may keep a secret typed on the command line, so set it with the prompts above.
+  - **Set up and act early.** Until your first sealed action there is nothing to contradict an impostor: someone who replaces the reviewer file before then can record sealed decisions. It is detected, not prevented: your next command fails with "the reviewer secret does not match", and nothing should be acted on until the log has been checked.
+  - **Agent views are unchecked.** `closepilot agent …`, `reviewer cases` and `reviewer case` cannot check seals, so trust only `export`, `summary` and the case-changing commands.
+  - **Starting over is not detectable from inside.** Deleting both the log and the reviewer file leaves no trace in either; the log hash in an exported decision record is the outside anchor.
 
 ## Licence
 

@@ -37,6 +37,7 @@ from enum import Enum
 from typing import Any
 
 from closepilot.models import Case, CaseState, RecordResult
+from closepilot.workflow import case_id_for
 
 DATA_QUALITY_CONTROLS: frozenset[str] = frozenset({"C03", "C04", "C06", "C07"})
 MAX_COMMENTARY_ECHO = 200
@@ -98,10 +99,9 @@ class Investigation:
 
 
 def _case_records(case: Case, results: Sequence[RecordResult]) -> list[RecordResult]:
-    if case.case_id.startswith("LINE-") and case.case_id[5:].isdigit():
-        line = int(case.case_id[5:])
-        return [r for r in results if r.record.line_number == line]
-    return [r for r in results if r.record.record_id == case.case_id]
+    # Same mapping as when the case was opened, so a genuine record_id such as "LINE-3"
+    # is never confused with the third line of the package.
+    return [r for r in results if case_id_for(r) == case.case_id]
 
 
 def _concentration(primary: RecordResult, results: Sequence[RecordResult]) -> Concentration | None:

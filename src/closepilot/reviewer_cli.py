@@ -3,8 +3,12 @@
 Commands that change a case (comment, attach-evidence, request-evidence, rework, decide,
 close) pass the reviewer check first: the secret in ``CLOSEPILOT_REVIEWER_SECRET`` must
 match the hash stored by ``reviewer init``. A failed check on an existing case is recorded
-as an ACCESS_DENIED event by an UNVERIFIED actor, and nothing else happens. Read-only
-commands (cases, case, export, summary) need no secret.
+as an ACCESS_DENIED event by an UNVERIFIED actor, and nothing else happens.
+
+Those commands and the authoritative outputs (export, summary) also check the seal of
+every human event in the log and refuse to work on a log holding one the current reviewer
+did not seal (see ``closepilot.reviewer``). ``cases`` and ``case`` are quick views that
+need no secret and check no seals.
 
 Exit codes: 0 success, 2 bad input or configuration, 3 refused by the workflow,
 4 audit log locked, unreadable or failed integrity checks, 5 reviewer check failed.
@@ -34,6 +38,7 @@ from closepilot.report import decision_record, decision_record_markdown, package
 from closepilot.reviewer import (
     REVIEWER_FILE,
     SECRET_ENV,
+    Reviewer,
     ReviewerError,
     init_reviewer,
     verify_reviewer,
@@ -53,8 +58,16 @@ UNVERIFIED = Actor(ActorType.UNVERIFIED, "unverified-reviewer")
 Mutation = Callable[[CaseWorkflow, Actor, argparse.Namespace], Case]
 
 
-def _workflow(home: Path) -> CaseWorkflow:
-    return CaseWorkflow(AuditLog(home / AUDIT_PATH), load_config(home / CONFIG_PATH))
+def _workflow(home: Path, reviewer: Reviewer | None = None) -> CaseWorkflow:
+    """A plain workflow, or with ``reviewer`` one that seals and checks human events."""
+    log, config = AuditLog(home / AUDIT_PATH), load_config(home / CONFIG_PATH)
+    if reviewer is None:
+        return CaseWorkflow(log, config)
+    return CaseWorkflow(log, config, sealer=reviewer.seal, verifier=reviewer.verify_log)
+
+
+def _verified(home: Path) -> Reviewer:
+    return verify_reviewer(home / REVIEWER_FILE, os.environ.get(SECRET_ENV))
 
 
 def _print(payload: object) -> int:
@@ -82,8 +95,8 @@ def _case(args: argparse.Namespace) -> int:
 
 
 def _export(args: argparse.Namespace) -> int:
-    wf = _workflow(args.home)
-    events = wf.log.read()
+    wf = _workflow(args.home, _verified(args.home))
+    events = wf.events()
     case = wf.get(args.case_id)
     results = load_results(args.home, case.submission_id, wf.config)
     record = decision_record(
@@ -112,7 +125,7 @@ def _export(args: argparse.Namespace) -> int:
 def _summary(args: argparse.Namespace) -> int:
     from closepilot.cli import build_report  # cli imports this module
 
-    wf = _workflow(args.home)
+    wf = _workflow(args.home, _verified(args.home))
     results = load_results(args.home, args.submission, wf.config)
     summary = package_summary(
         args.submission,
@@ -128,17 +141,19 @@ def _summary(args: argparse.Namespace) -> int:
 
 def _mutating(action: Action, run: Mutation) -> Callable[[argparse.Namespace], int]:
     def handler(args: argparse.Namespace) -> int:
-        wf = _workflow(args.home)
         try:
-            reviewer = verify_reviewer(args.home / REVIEWER_FILE, os.environ.get(SECRET_ENV))
+            reviewer = _verified(args.home)
         except ReviewerError as exc:
             try:
-                wf.record_denied(UNVERIFIED, args.case_id, action, f"reviewer check failed: {exc}")
+                _workflow(args.home).record_denied(
+                    UNVERIFIED, args.case_id, action, f"reviewer check failed: {exc}"
+                )
                 recorded = " (recorded in the audit log)"
             except CaseNotFound:
                 recorded = ""
             print(f"refused: reviewer check failed: {exc}{recorded}", file=sys.stderr)
             return EXIT_REVIEWER_CHECK_FAILED
+        wf = _workflow(args.home, reviewer)
         case = run(wf, Actor(ActorType.HUMAN, reviewer.name), args)
         return _print(case_to_dict(case))
 

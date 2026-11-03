@@ -425,17 +425,45 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def case_id_for(result: RecordResult) -> str:
+    """The case ID a record belongs to: its record_id, or ``LINE-<n>`` when the
+    record_id is not a safe identifier."""
+    rid = result.record.record_id
+    return rid if _ID_RE.fullmatch(rid) else f"LINE-{result.record.line_number}"
+
+
 class CaseWorkflow:
     """Records workflow actions in the audit log. Every method is all-or-nothing:
     either the event is durably appended and the new case returned, or an error is
-    raised and nothing about the case changed."""
+    raised and nothing about the case changed.
+
+    ``sealer`` is applied to every human event as it is appended (see
+    ``closepilot.reviewer``), and ``verifier`` checks the whole log before it is replayed;
+    the reviewer interface passes both, so it never acts on a log holding a human event
+    it did not seal.
+    """
 
     def __init__(
-        self, log: AuditLog, config: ControlConfig, clock: Callable[[], datetime] = _utc_now
+        self,
+        log: AuditLog,
+        config: ControlConfig,
+        clock: Callable[[], datetime] = _utc_now,
+        *,
+        sealer: Callable[[AuditEvent], AuditEvent] | None = None,
+        verifier: Callable[[Sequence[AuditEvent]], None] | None = None,
     ) -> None:
         self.log = log
         self.config = config
         self._clock = clock
+        self._sealer = sealer
+        self._verifier = verifier
+
+    def events(self) -> list[AuditEvent]:
+        """The full log, checked by the verifier when one is set."""
+        events = self.log.read()
+        if self._verifier is not None:
+            self._verifier(events)
+        return events
 
     def _timestamp(self) -> str:
         now = self._clock()
@@ -444,7 +472,7 @@ class CaseWorkflow:
         return now.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
     def cases(self) -> dict[str, Case]:
-        return replay(self.log.read())
+        return replay(self.events())
 
     def get(self, case_id: str) -> Case:
         case = self.cases().get(case_id)
@@ -493,7 +521,7 @@ class CaseWorkflow:
         control_id: str | None = None,
     ) -> Case:
         with self.log.locked():
-            case = replay(self.log.read()).get(case_id)
+            case = replay(self.events()).get(case_id)
             if case is None and action is not Action.OPEN_CASE:
                 raise CaseNotFound(f"case {case_id!r} does not exist")
             current = None if case is None else case.state
@@ -539,7 +567,8 @@ class CaseWorkflow:
                         )
                     )
                 raise
-            stored = self.log.append(event)
+            sealer = self._sealer if actor.actor_type is ActorType.HUMAN else None
+            stored = self.log.append(event, sealer)
             return apply_event(case, stored)
 
     # Public actions -------------------------------------------------------------------
@@ -641,9 +670,7 @@ class CaseWorkflow:
         for result in results:
             if result.status not in {Status.REVIEW_REQUIRED, Status.ERROR}:
                 continue
-            rid = result.record.record_id
-            case_id = rid if _ID_RE.fullmatch(rid) else f"LINE-{result.record.line_number}"
-            grouped.setdefault(case_id, []).append(result)
+            grouped.setdefault(case_id_for(result), []).append(result)
 
         existing = self.cases()
         opened: list[str] = []

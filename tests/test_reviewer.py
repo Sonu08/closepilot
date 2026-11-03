@@ -224,7 +224,7 @@ def test_golden_demo_end_to_end(
     assert len(record["audit"]["log_last_event_hash"]) == 64
     markdown = (home / "out/decisions/EX-003.md").read_text(encoding="utf-8")
     assert "# Decision record: EX-003" in markdown
-    assert "- **Decided by:** Alex Reviewer (HUMAN)" in markdown
+    assert "- **Decided by:** `Alex Reviewer` (HUMAN)" in markdown
     assert "has not inspected the documents behind them" in markdown
 
     # Scene 10: package summary.
