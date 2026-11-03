@@ -20,8 +20,9 @@ from pathlib import Path
 from typing import Any
 
 from closepilot.audit import AuditError, AuditLog
-from closepilot.config import ConfigError, load_config
+from closepilot.config import ConfigError, ControlConfig, load_config
 from closepilot.ingestion import IngestionError, load_package
+from closepilot.investigation import InvestigationError, investigate, investigation_to_dict
 from closepilot.models import (
     EXCEPTION_INVESTIGATOR,
     KNOWN_AGENTS,
@@ -29,6 +30,7 @@ from closepilot.models import (
     ActorType,
     Case,
     Recommendation,
+    RecordResult,
 )
 from closepilot.submissions import SubmissionError, load_registry, resolve
 from closepilot.validation import validate_package
@@ -72,6 +74,12 @@ def _workflow(home: Path) -> CaseWorkflow:
     return CaseWorkflow(AuditLog(home / AUDIT_PATH), load_config(home / CONFIG_PATH))
 
 
+def load_results(home: Path, submission_id: str, config: ControlConfig) -> list[RecordResult]:
+    """Validate a registered submission's package (looked up by ID, never by path)."""
+    submission = resolve(load_registry(home / REGISTRY_PATH, home), submission_id)
+    return validate_package(load_package(submission.package), config)
+
+
 def _submissions(args: argparse.Namespace, actor: Actor) -> int:
     registry = load_registry(args.home / REGISTRY_PATH, args.home)
     return _emit({"submissions": sorted(registry)})
@@ -107,6 +115,13 @@ def _cases(args: argparse.Namespace, actor: Actor) -> int:
 
 def _case(args: argparse.Namespace, actor: Actor) -> int:
     return _emit(case_to_dict(_workflow(args.home).get(args.case_id)))
+
+
+def _investigate(args: argparse.Namespace, actor: Actor) -> int:
+    wf = _workflow(args.home)
+    case = wf.get(args.case_id)
+    results = load_results(args.home, case.submission_id, wf.config)
+    return _emit(investigation_to_dict(investigate(case, results)))
 
 
 def _handoff(args: argparse.Namespace, actor: Actor) -> int:
@@ -151,6 +166,10 @@ def add_agent_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
     p.add_argument("case_id")
     p.set_defaults(agent_handler=_case)
 
+    p = cmds.add_parser("investigate", help="deterministic facts and next step for a case")
+    p.add_argument("case_id")
+    p.set_defaults(agent_handler=_investigate)
+
     p = cmds.add_parser("handoff", help="hand an OPEN case to an investigator")
     p.add_argument("case_id")
     p.add_argument("--to", default=EXCEPTION_INVESTIGATOR.name, choices=sorted(KNOWN_AGENTS))
@@ -175,7 +194,7 @@ def run_agent_command(args: argparse.Namespace) -> int:
     actor = Actor(ActorType.AGENT, args.agent)
     try:
         result: int = args.agent_handler(args, actor)
-    except (ConfigError, IngestionError, SubmissionError) as exc:
+    except (ConfigError, IngestionError, SubmissionError, InvestigationError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_INPUT_ERROR
     except WorkflowError as exc:
