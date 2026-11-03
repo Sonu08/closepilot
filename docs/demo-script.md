@@ -7,7 +7,7 @@ Every number and state below is produced by Python and is deterministic; the out
 ## Before you start
 
 - Switch Console running, with the room `#closepilot-close-2026-10` and the agents `control-analyst` and `exception-investigator` (created from [`switch/closepilot-room.template.yaml`](../switch/closepilot-room.template.yaml); see the README's *Switch room* section).
-- A terminal (Git Bash) in the repository, with the `closepilot` conda environment active. This is the Finance Reviewer's own shell: the reviewer commands run here, never in the room.
+- A terminal in the repository: Git Bash with the `closepilot` conda environment active, or PowerShell (see *Using PowerShell* below). This is the Finance Reviewer's own shell: the reviewer commands run here, never in the room, and never in a Claude Code prompt.
 - `switch/local/python` points at the environment's interpreter.
 
 **Choose a starting point.**
@@ -28,6 +28,29 @@ closepilot reviewer init --name "Alex Reviewer"
 ```
 
 Expected: `{"reviewer": "Alex Reviewer", "file": ".closepilot/reviewer.json", "enrolment": "EVT-…"}`. The reviewer is now enrolled once in the audit log.
+
+### Using PowerShell
+
+The Git Bash lines above (`read -rs`, `export`, `mkdir -p`, `mv`) do not work in PowerShell, and `closepilot` is not on PowerShell's `PATH` unless the conda environment is active there. Run these instead, in the repository folder.
+
+1. **Define `closepilot` for this window.** Every `closepilot …` line in the scenes below then works unchanged. Adjust the path if your conda environment lives elsewhere:
+   ```powershell
+   function closepilot { & "$env:USERPROFILE\anaconda3\envs\closepilot\python.exe" -m closepilot.cli @args }
+   ```
+2. **Fresh run only — move the previous run aside:**
+   ```powershell
+   $stamp = Get-Date -Format yyyyMMdd-HHmm; New-Item -ItemType Directory -Force out\archive | Out-Null; Move-Item out\audit.jsonl "out\archive\audit-$stamp.jsonl"; if (Test-Path .closepilot\reviewer.json) { Move-Item .closepilot\reviewer.json "out\archive\reviewer-$stamp.json" }
+   ```
+3. **Set the reviewer secret.** PowerShell prompts for it without showing what you type:
+   ```powershell
+   $env:CLOSEPILOT_REVIEWER_SECRET = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR((Read-Host -AsSecureString "Reviewer secret")))
+   ```
+4. **Enrol:**
+   ```powershell
+   closepilot reviewer init --name "Alex Reviewer"
+   ```
+
+The function and the secret last only as long as this PowerShell window. In a new window, repeat steps 1 and 3 before any reviewer command. When the demo is over, clear the secret with `Remove-Item Env:CLOSEPILOT_REVIEWER_SECRET` or close the window. Check a command's exit code with `$LASTEXITCODE`.
 
 ## Scene 1 — Initiation
 
@@ -100,7 +123,7 @@ The investigator runs `investigate EX-003` → next step **`RECOMMEND_APPROVE`**
 
 **Optional — show the gate.** In the room: `@exception-investigator approve EX-003.` It must decline: it has no decide command (`invalid choice: 'decide'`), and the workflow refuses decisions from any agent.
 
-**Optional — show a refused human-side attempt.** In a second terminal *without* the secret:
+**Optional — show a refused human-side attempt.** In a second terminal *without* the secret (in PowerShell, a new window with only step 1 of *Using PowerShell*):
 
 ```bash
 closepilot reviewer decide EX-003 approve --rationale "test"
@@ -148,7 +171,9 @@ Expected (if only EX-003 has been decided):
 |---|---|
 | An agent does not answer | Check it is in the room (`!list-agents`); in Switch Console stop its session, then address it again |
 | The investigator does not run `investigate` | Its brief is read when a session starts: stop its session and address it again |
-| Reviewer command exits 5 | The secret is not set in *this* terminal; set it as above |
+| Reviewer command exits 5 | The secret is not set in *this* terminal; set it as above. Note that the attempt itself is recorded as `ACCESS_DENIED` (harmless; it shows under *Refused attempts* in the decision record) |
+| `closepilot` is not recognised, or `read`/`export` fail | You are in PowerShell: follow *Using PowerShell* |
+| Commands typed but the log does not change | They went into a Claude Code prompt, not a shell. Run them in a terminal |
 | Any command exits 4 | Stop: the audit log or reviewer file failed an integrity check. Do not continue the demo on that log |
 | `audit log is locked` | Confirm nothing is running, then remove `out/audit.jsonl.lock` |
 | Switch is unavailable | Run the same scenes locally: `closepilot agent --as control-analyst validate FC-2026-10` (and `open-cases`, `handoff`), `closepilot agent --as exception-investigator investigate EX-003` (and `request-evidence`, `recommend`), then the reviewer commands above |
