@@ -20,6 +20,9 @@ htmlcov/
 *.pem
 *.key
 .closepilot/
+# Switch agent credentials and per-machine settings
+.switch/
+switch/local/
 
 # Runtime output
 out/

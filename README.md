@@ -4,7 +4,7 @@ ClosePilot is a collaborative AI finance-control room where agents validate and 
 
 > **ClosePilot does not allow an AI agent to approve material finance exceptions.** Agents calculate, investigate and recommend; a human reviewer makes and records the final decision.
 
-**Status:** work in progress (Phase 3 — deterministic controls, case workflow with human-only approval, append-only audit log). All data is synthetic and describes the fictional *Northstar Logistics Group*.
+**Status:** work in progress (Phase 4 — deterministic controls, human-only approval workflow, append-only audit log, Switch room with two agents). All data is synthetic and describes the fictional *Northstar Logistics Group*.
 
 ## Quick start (development)
 
@@ -90,6 +90,35 @@ Records that are `REVIEW_REQUIRED` or `ERROR` become cases (one per `record_id`,
 - **Stale lock recovery.** If a ClosePilot process is killed while holding the lock, the lock directory remains and every later command fails with `audit log is locked (...)`. ClosePilot never removes a lock it did not create, because it cannot tell a crashed process from a slow one. Recovery is a human action: confirm that no ClosePilot command is running, then delete the `.lock` directory named in the error. The log itself stays consistent, because a write either completes or is rolled back.
 - **Durable or not at all.** Writes are fsynced. A failed write is rolled back and raised, so an action is never reported as recorded when it was not.
 - **Honest limits.** This is application-level tamper *evidence*, not immutable or cryptographically secured storage: anyone with write access can replace the whole file, and a rule-respecting edit of the *newest* line is not detectable by the chain alone (rule-breaking edits, such as a forged agent approval, are still rejected on replay).
+
+## Switch room
+
+ClosePilot runs as a Switch room with two Claude Code agents and one human:
+
+| Participant | Can | Cannot |
+|---|---|---|
+| `control-analyst` (agent) | validate a submission, open cases, hand them off | investigate, recommend, decide |
+| `exception-investigator` (agent) | read cases, request evidence, recommend APPROVE / REJECT | hand off, attach evidence, decide |
+| Finance Reviewer (human) | attach evidence, add commentary, return for rework, **approve / reject**, close | — |
+
+The control analyst hands work to the investigator with a real `@exception-investigator` mention. This was verified live: an agent's mention wakes another agent when its addressing is `owner-agents`.
+
+**Setup (once per machine)**
+
+1. Install ClosePilot into a Python 3.13 environment (see Quick start).
+2. Write that interpreter's path to `switch/local/python` (git-ignored), for example `C:/Users/you/anaconda3/envs/closepilot/python.exe`. The agents' shell is Git Bash, where `python` may be a Windows Store stub and `closepilot` is not on `PATH`.
+3. In Switch Console: **Templates → Import template**, choose [`switch/closepilot-room.template.yaml`](switch/closepilot-room.template.yaml), set **ClosePilot checkout** to this repository's path, and select **Create all**.
+4. In the room: `@control-analyst check FC-2026-10`.
+
+**How agents reach ClosePilot**
+
+- Each agent works in its own folder, [`switch/agents/<name>/`](switch/agents), with a `CLAUDE.md` brief and a `.claude/settings.json` that allows exactly one command, `../../bin/closepilot-agent`, and denies file edits, web access and common shell escapes.
+- [`switch/bin/closepilot-agent`](switch/bin/closepilot-agent) takes the agent's identity from its working directory, not from an argument, and runs `closepilot agent --as <name> …` ([`agent_cli.py`](src/closepilot/agent_cli.py)), which prints JSON.
+- Agents name submissions by ID. [`config/submissions.yaml`](config/submissions.yaml) maps IDs to packages inside the repository; a path-like or unknown ID is refused, so a room message cannot point ClosePilot at an arbitrary file.
+- The agent CLI has no decide, close, attach-evidence or commentary command. Even if an agent ran Python directly, the workflow refuses those actions from any agent actor.
+- Agent actions are written to `out/audit.jsonl` (git-ignored). Exit code `3` means the workflow refused the action; a refusal on an existing case is logged as `ACCESS_DENIED`.
+
+**Limits, stated plainly.** The per-agent permission files are a second layer, not a sandbox: with Auto mode on, Claude Code's own review decides about commands outside the allow and deny lists. The guarantee that no agent can approve or reject comes from the workflow layer. Switch credentials live in `.switch/` folders, which are git-ignored.
 
 ## Licence
 

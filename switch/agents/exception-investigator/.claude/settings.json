@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(../../bin/closepilot-agent:*)"
+    ],
+    "deny": [
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "WebSearch",
+      "Bash(cd:*)",
+      "Bash(rm:*)",
+      "Bash(git:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(pip:*)",
+      "Read(./.switch/**)",
+      "Read(~/.switch/**)",
+      "Read(~/AppData/Roaming/switchdash/**)"
+    ]
+  }
+}

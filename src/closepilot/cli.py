@@ -10,6 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from closepilot.agent_cli import add_agent_parser
 from closepilot.config import ConfigError, load_config
 from closepilot.ingestion import IngestionError, load_package
 from closepilot.models import RecordResult
@@ -146,6 +147,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="controls YAML")
     validate.add_argument("--json", action="store_true", help="emit structured JSON")
     validate.set_defaults(handler=_cmd_validate)
+    add_agent_parser(sub)
     return parser
 
 

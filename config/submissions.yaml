@@ -1,0 +1,7 @@
+# Close packages agents may work on, by submission ID. Agents name a submission ID;
+# they never pass a file path. Paths are relative to the ClosePilot home and must stay
+# inside it. Change only by explicit human action.
+
+submissions:
+  FC-2026-10:
+    package: data/synthetic_close_package.csv

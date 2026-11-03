@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Run one ClosePilot agent command as the agent whose directory this is run from.
+#
+# The agent identity comes from the working directory (switch/agents/<agent-name>), not
+# from an argument, so an agent cannot name itself as the other one. The Python
+# interpreter that has closepilot installed is read from CLOSEPILOT_PYTHON or from the
+# first line of switch/local/python (git-ignored, one per machine).
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+home="$(cd "$here/../.." && pwd)"
+agent="$(basename "$PWD")"
+
+case "$agent" in
+  control-analyst | exception-investigator) ;;
+  *)
+    echo "error: run from switch/agents/<agent-name>, not '$PWD'" >&2
+    exit 2
+    ;;
+esac
+if [ "$PWD" != "$home/switch/agents/$agent" ]; then
+  echo "error: run from $home/switch/agents/$agent, not '$PWD'" >&2
+  exit 2
+fi
+
+python="${CLOSEPILOT_PYTHON:-}"
+if [ -z "$python" ] && [ -f "$home/switch/local/python" ]; then
+  python="$(head -n 1 "$home/switch/local/python" | tr -d '\r')"
+fi
+if [ -z "$python" ]; then
+  echo "error: write the path of the Python that has closepilot installed to" \
+    "$home/switch/local/python" >&2
+  exit 2
+fi
+
+exec "$python" -m closepilot.cli agent --as "$agent" --home "$home" "$@"
