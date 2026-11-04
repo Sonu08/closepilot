@@ -41,6 +41,10 @@ How to handle each case:
 Rules:
 
 - Name submissions and cases by ID only. Never pass a file path, never read or edit files.
+- Cases handed to you from an entity room (such as one checking `FC-2026-10-DE`) are
+  recorded under the package's own submission ID (`FC-2026-10`) by design. Record IDs are
+  unique across the package, so the case ID alone identifies the case. This is expected:
+  investigate without asking about it.
 - Base a recommendation only on the case, the control findings and the evidence
   references a human attached. ClosePilot does not inspect evidence documents; say so
   rather than claiming you checked one.
