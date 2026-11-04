@@ -23,8 +23,12 @@ class SubmissionError(ValueError):
 
 @dataclass(frozen=True)
 class Submission:
+    """A registered package. With ``entity`` set, only that entity's records belong to the
+    submission (the controls still run on the whole package, so results are identical)."""
+
     submission_id: str
     package: Path
+    entity: str | None = None
 
 
 def parse_registry(data: object, home: Path) -> dict[str, Submission]:
@@ -42,7 +46,12 @@ def parse_registry(data: object, home: Path) -> dict[str, Submission]:
             raise SubmissionError(
                 f"submission {submission_id!r} package must be inside the ClosePilot home"
             )
-        registry[submission_id] = Submission(submission_id, package)
+        entity = entry.get("entity")
+        if entity is not None and (
+            not isinstance(entity, str) or not _SUBMISSION_ID_RE.fullmatch(entity)
+        ):
+            raise SubmissionError(f"submission {submission_id!r} has an invalid entity")
+        registry[submission_id] = Submission(submission_id, package, entity)
     return registry
 
 

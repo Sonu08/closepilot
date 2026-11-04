@@ -5,3 +5,14 @@
 submissions:
   FC-2026-10:
     package: data/synthetic_close_package.csv
+  # One submission per entity, for the close room v2 entity rooms. Same package: the
+  # controls run on all of it, and each submission keeps only its entity's records.
+  FC-2026-10-DE:
+    package: data/synthetic_close_package.csv
+    entity: NLG-DE
+  FC-2026-10-PL:
+    package: data/synthetic_close_package.csv
+    entity: NLG-PL
+  FC-2026-10-US:
+    package: data/synthetic_close_package.csv
+    entity: NLG-US

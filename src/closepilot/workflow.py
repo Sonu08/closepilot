@@ -59,6 +59,7 @@ from closepilot.models import (
     CONTROL_ANALYST,
     CONTROL_IDS,
     EXCEPTION_INVESTIGATOR,
+    HANDOFF_TARGETS,
     KNOWN_AGENTS,
     REVIEWER_RECORD,
     Action,
@@ -366,8 +367,8 @@ def apply_event(case: Case | None, event: AuditEvent) -> Case:
     match event.action:
         case Action.HANDOFF:
             to = details.get("to")
-            if not isinstance(to, str) or to not in KNOWN_AGENTS:
-                raise InvalidInput(f"hand-off target must be one of {sorted(KNOWN_AGENTS)}")
+            if not isinstance(to, str) or to not in HANDOFF_TARGETS:
+                raise InvalidInput(f"hand-off target must be one of {sorted(HANDOFF_TARGETS)}")
             _check_no_refs(refs, event.action)
             return replace(updated, owner=to)
         case Action.REQUEST_EVIDENCE:

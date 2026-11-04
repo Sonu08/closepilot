@@ -1,0 +1,126 @@
+# ClosePilot close room v2 (Switch group template, version 1). Built during the Flip the
+# Switch hackathon window (Nov 4-7, 2026).
+#
+# One room per entity, where the Control Analyst checks that entity and hands its cases to
+# the Exception Investigator, plus one review room where the human Finance Reviewer works
+# with the Close Coordinator, who keeps a live status board as a room document. Rooms are
+# linked both ways so agents know where escalations go. Each agent works only in the room
+# it is addressed in: in Switch, one agent's session posting into another room takes that
+# room over from its other session. Only the human approves or rejects, through
+# `closepilot reviewer`.
+version: 1
+params:
+  bridge:
+    type: bridge
+    default: [$first]
+  closepilot_home:
+    label: ClosePilot checkout
+    description: >-
+      Absolute path of this repository on the machine the agents run on, with forward
+      slashes (for example C:/Projects/closepilot).
+    pattern: "([A-Za-z]:)?/.+"
+agents:
+  - name: control-analyst
+    allow_existing: true
+    description: Runs ClosePilot's deterministic controls and opens cases. Never decides.
+    provider: claude
+    location: local
+    directory: "{closepilot_home}/switch/agents/control-analyst"
+    addressing: owner-agents
+    auto_mode: true
+    auto_approve: false
+    instructions: |
+      You are the Control Analyst in a finance close-control room. CLAUDE.md in your
+      working directory lists the only command you may run and your rules.
+      When asked to check a submission (for example "check FC-2026-10-DE"):
+      1. Run `validate <SUBMISSION_ID>`. Post the summary exactly as printed.
+      2. Run `open-cases <SUBMISSION_ID>` and list the cases opened.
+      3. Hand off every case you opened with `handoff <CASE_ID> --note "<one line>"`.
+      4. Post one new message in this same room that addresses @exception-investigator
+         by name and lists the case IDs it now owns.
+      Stay in the room you were addressed in. You never approve, reject, close or decide.
+  - name: exception-investigator
+    allow_existing: true
+    description: Investigates ClosePilot cases and recommends to the Finance Reviewer. Never decides.
+    provider: claude
+    location: local
+    directory: "{closepilot_home}/switch/agents/exception-investigator"
+    addressing: owner-agents
+    auto_mode: true
+    auto_approve: false
+    instructions: |
+      You are the Exception Investigator in a finance close-control room. CLAUDE.md in
+      your working directory lists the only command you may run and your rules.
+      When cases are handed to you, take them one at a time: run `investigate <CASE_ID>`
+      and follow its `next_step` exactly as CLAUDE.md describes, then post what you did
+      and why, in the room you were addressed in, addressed to the Finance Reviewer.
+      You never approve, reject, close or decide, and you never attach evidence.
+  - name: close-coordinator
+    description: Keeps the ClosePilot status board in the review room. Read-only; never decides.
+    provider: claude
+    location: local
+    directory: "{closepilot_home}/switch/agents/close-coordinator"
+    addressing: owner-agents
+    auto_mode: true
+    auto_approve: false
+    instructions: |
+      You are the Close Coordinator. CLAUDE.md in your working directory lists the only
+      commands you may run and exactly how to keep the status board. When asked for the
+      status, run `status FC-2026-10`, create or update the room document
+      close-status-board in the review room, and post a short summary there. You change
+      nothing in ClosePilot and never approve, reject or decide.
+group:
+  name: closepilot-close-2026-10-v2
+  description: ClosePilot October close for Northstar Logistics Group (synthetic data), one room per entity.
+rooms:
+  - name: closepilot-oct-de
+    description: October close, entity NLG-DE (submission FC-2026-10-DE).
+    bridge: "{bridge}"
+    agents: [control-analyst, exception-investigator]
+    users: ["{$creator}"]
+    instructions: |
+      Entity close room for NLG-DE. The Control Analyst checks FC-2026-10-DE and hands its
+      cases to the Exception Investigator here. Decisions happen in the review room, by the
+      human Finance Reviewer only. All data is synthetic.
+    kickoff: |
+      @control-analyst check FC-2026-10-DE
+  - name: closepilot-oct-pl
+    description: October close, entity NLG-PL (submission FC-2026-10-PL).
+    bridge: "{bridge}"
+    agents: [control-analyst, exception-investigator]
+    users: ["{$creator}"]
+    instructions: |
+      Entity close room for NLG-PL. The Control Analyst checks FC-2026-10-PL and hands its
+      cases to the Exception Investigator here. Decisions happen in the review room, by the
+      human Finance Reviewer only. All data is synthetic.
+    kickoff: |
+      @control-analyst check FC-2026-10-PL
+  - name: closepilot-oct-us
+    description: October close, entity NLG-US (submission FC-2026-10-US).
+    bridge: "{bridge}"
+    agents: [control-analyst, exception-investigator]
+    users: ["{$creator}"]
+    instructions: |
+      Entity close room for NLG-US. The Control Analyst checks FC-2026-10-US and hands its
+      cases to the Exception Investigator here. Decisions happen in the review room, by the
+      human Finance Reviewer only. All data is synthetic.
+    kickoff: |
+      @control-analyst check FC-2026-10-US
+  - name: closepilot-oct-review
+    description: October close review room for the Finance Reviewer, with the status board.
+    bridge: "{bridge}"
+    agents: [close-coordinator]
+    users: ["{$creator}"]
+    instructions: |
+      Review room for the October close. The Close Coordinator keeps the room document
+      close-status-board up to date across all entities. The human Finance Reviewer makes
+      every decision, with their own reviewer commands. All data is synthetic.
+    kickoff: |
+      @close-coordinator build the status board for FC-2026-10
+links:
+  - { from: closepilot-oct-de, to: closepilot-oct-review, label: review-room }
+  - { from: closepilot-oct-pl, to: closepilot-oct-review, label: review-room }
+  - { from: closepilot-oct-us, to: closepilot-oct-review, label: review-room }
+  - { from: closepilot-oct-review, to: closepilot-oct-de, label: entity-NLG-DE }
+  - { from: closepilot-oct-review, to: closepilot-oct-pl, label: entity-NLG-PL }
+  - { from: closepilot-oct-review, to: closepilot-oct-us, label: entity-NLG-US }

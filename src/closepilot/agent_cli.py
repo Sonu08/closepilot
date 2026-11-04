@@ -25,6 +25,7 @@ from closepilot.ingestion import IngestionError, load_package
 from closepilot.investigation import InvestigationError, investigate, investigation_to_dict
 from closepilot.models import (
     EXCEPTION_INVESTIGATOR,
+    HANDOFF_TARGETS,
     KNOWN_AGENTS,
     Actor,
     ActorType,
@@ -32,6 +33,7 @@ from closepilot.models import (
     Recommendation,
     RecordResult,
 )
+from closepilot.status import package_status, status_markdown
 from closepilot.submissions import SubmissionError, load_registry, resolve
 from closepilot.validation import validate_package
 from closepilot.workflow import CaseWorkflow, WorkflowError
@@ -75,9 +77,16 @@ def _workflow(home: Path) -> CaseWorkflow:
 
 
 def load_results(home: Path, submission_id: str, config: ControlConfig) -> list[RecordResult]:
-    """Validate a registered submission's package (looked up by ID, never by path)."""
+    """Validate a registered submission's package (looked up by ID, never by path).
+
+    For an entity submission the controls still run on the whole package, so duplicate
+    detection and every figure are the same as for the full package; only that entity's
+    results are returned."""
     submission = resolve(load_registry(home / REGISTRY_PATH, home), submission_id)
-    return validate_package(load_package(submission.package), config)
+    results = validate_package(load_package(submission.package), config)
+    if submission.entity is None:
+        return results
+    return [r for r in results if r.record.raw.get("entity") == submission.entity]
 
 
 def _submissions(args: argparse.Namespace, actor: Actor) -> int:
@@ -89,21 +98,25 @@ def _validate(args: argparse.Namespace, actor: Actor) -> int:
     # Imported here: cli.py imports this module to register the subcommand.
     from closepilot.cli import build_report
 
-    submission = resolve(load_registry(args.home / REGISTRY_PATH, args.home), args.submission)
-    results = validate_package(
-        load_package(submission.package), load_config(args.home / CONFIG_PATH)
-    )
-    return _emit({"submission_id": submission.submission_id, **build_report(results)})
+    results = load_results(args.home, args.submission, load_config(args.home / CONFIG_PATH))
+    return _emit({"submission_id": args.submission, **build_report(results)})
 
 
 def _open_cases(args: argparse.Namespace, actor: Actor) -> int:
-    submission = resolve(load_registry(args.home / REGISTRY_PATH, args.home), args.submission)
     wf = _workflow(args.home)
-    results = validate_package(load_package(submission.package), wf.config)
+    results = load_results(args.home, args.submission, wf.config)
     opened, already = wf.open_cases_for_package(actor, results)
-    return _emit(
-        {"submission_id": submission.submission_id, "opened": opened, "already_open": already}
-    )
+    return _emit({"submission_id": args.submission, "opened": opened, "already_open": already})
+
+
+def _status(args: argparse.Namespace, actor: Actor) -> int:
+    wf = _workflow(args.home)
+    results = load_results(args.home, args.submission, wf.config)
+    # Cases carry the package's own submission_id column, not the registry ID asked for.
+    package_ids = {r.record.raw.get("submission_id", "") for r in results}
+    package_id = next(iter(package_ids)) if len(package_ids) == 1 else args.submission
+    status = package_status(package_id, results, wf.cases(), label=args.submission)
+    return _emit({**status, "markdown": status_markdown(status)})
 
 
 def _cases(args: argparse.Namespace, actor: Actor) -> int:
@@ -166,13 +179,17 @@ def add_agent_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
     p.add_argument("case_id")
     p.set_defaults(agent_handler=_case)
 
+    p = cmds.add_parser("status", help="status board: every case's state and next step")
+    p.add_argument("submission")
+    p.set_defaults(agent_handler=_status)
+
     p = cmds.add_parser("investigate", help="deterministic facts and next step for a case")
     p.add_argument("case_id")
     p.set_defaults(agent_handler=_investigate)
 
     p = cmds.add_parser("handoff", help="hand an OPEN case to an investigator")
     p.add_argument("case_id")
-    p.add_argument("--to", default=EXCEPTION_INVESTIGATOR.name, choices=sorted(KNOWN_AGENTS))
+    p.add_argument("--to", default=EXCEPTION_INVESTIGATOR.name, choices=sorted(HANDOFF_TARGETS))
     p.add_argument("--note", required=True)
     p.set_defaults(agent_handler=_handoff)
 

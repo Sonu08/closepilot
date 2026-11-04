@@ -70,7 +70,7 @@ def test_registry_rejects_malformed_data(tmp_path: Path, data: object) -> None:
 def test_submissions_lists_registered_ids(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert _run(home, CA, "submissions", capsys=capsys)[:2] == (
         EXIT_OK,
-        {"submissions": ["FC-2026-10"]},
+        {"submissions": ["FC-2026-10", "FC-2026-10-DE", "FC-2026-10-PL", "FC-2026-10-US"]},
     )
 
 
@@ -90,7 +90,7 @@ def test_validate_by_submission_id(home: Path, capsys: pytest.CaptureFixture[str
 @pytest.mark.parametrize(
     ("submission", "message"),
     [
-        ("FC-2099-01", "unknown submission 'FC-2099-01' (registered: FC-2026-10)"),
+        ("FC-2099-01", "unknown submission 'FC-2099-01' (registered: FC-2026-10, FC-2026-10-DE"),
         ("../data/synthetic_close_package.csv", "submission ID must be"),
         ("C:/Windows/win.ini", "submission ID must be"),
     ],
@@ -168,3 +168,143 @@ def test_agents_have_no_human_commands(
 def test_unknown_agent_name_is_rejected(home: Path) -> None:
     with pytest.raises(SystemExit):
         main(["agent", "--as", "Finance Reviewer", "--home", str(home), "cases"])
+
+
+# --- close room v2: entity submissions, status board, coordinator --------------------
+
+CO = "close-coordinator"
+
+
+@pytest.mark.parametrize(
+    ("submission", "records", "counts", "cases"),
+    [
+        (
+            "FC-2026-10-DE",
+            9,
+            {"PASS": 3, "WARNING": 1, "REVIEW_REQUIRED": 4, "ERROR": 1},
+            ["EX-003", "EX-010", "EX-012", "EX-016", "EX-019"],
+        ),
+        (
+            "FC-2026-10-PL",
+            8,
+            {"PASS": 5, "WARNING": 1, "REVIEW_REQUIRED": 2, "ERROR": 0},
+            ["EX-009", "EX-013"],
+        ),
+        (
+            "FC-2026-10-US",
+            8,
+            {"PASS": 2, "WARNING": 1, "REVIEW_REQUIRED": 4, "ERROR": 1},
+            ["EX-008", "EX-011", "EX-014", "EX-018"],
+        ),
+    ],
+)
+def test_entity_submission_validates_and_opens_only_its_entity(
+    home: Path,
+    capsys: pytest.CaptureFixture[str],
+    submission: str,
+    records: int,
+    counts: dict[str, int],
+    cases: list[str],
+) -> None:
+    code, payload, _ = _run(home, CA, "validate", submission, capsys=capsys)
+    assert code == EXIT_OK
+    assert payload["submission_id"] == submission
+    assert payload["summary"]["total_records"] == records
+    assert payload["summary"]["status_counts"] == counts
+    code, opened, _ = _run(home, CA, "open-cases", submission, capsys=capsys)
+    assert (code, opened["opened"]) == (EXIT_OK, cases)
+
+
+def test_entity_submissions_together_open_the_same_cases_as_the_full_package(
+    home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for entity in ("DE", "PL", "US"):
+        _run(home, CA, "open-cases", f"FC-2026-10-{entity}", capsys=capsys)
+    _, again, _ = _run(home, CA, "open-cases", "FC-2026-10", capsys=capsys)
+    assert again["opened"] == []
+    assert len(again["already_open"]) == 11
+
+
+def test_entity_figures_match_the_full_package(
+    home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def ex003(report: Any) -> Any:
+        return next(r for r in report["results"] if r["record_id"] == "EX-003")
+
+    _, full, _ = _run(home, CA, "validate", "FC-2026-10", capsys=capsys)
+    _, de, _ = _run(home, CA, "validate", "FC-2026-10-DE", capsys=capsys)
+    assert ex003(de) == ex003(full)
+
+
+def test_status_board_for_the_coordinator(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _run(home, CA, "open-cases", "FC-2026-10-PL", capsys=capsys)
+    code, status, _ = _run(home, CO, "status", "FC-2026-10", capsys=capsys)
+    assert code == EXIT_OK
+    assert (status["submission_id"], status["records"], status["cases"]) == ("FC-2026-10", 25, 2)
+    assert status["waiting_on"] == {CA: 2}
+    assert status["markdown"].startswith("# Close status: `FC-2026-10`")
+    code, de, _ = _run(home, CO, "status", "FC-2026-10-DE", capsys=capsys)
+    assert (code, de["records"], de["cases"]) == (EXIT_OK, 9, 0)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("open-cases", "FC-2026-10-PL"),
+        ("handoff", "EX-009", "--note", "x"),
+        ("request-evidence", "EX-009", "--request", "x"),
+        ("recommend", "EX-009", "REJECT", "--rationale", "x"),
+    ],
+)
+def test_coordinator_can_change_nothing(
+    home: Path, capsys: pytest.CaptureFixture[str], args: tuple[str, ...]
+) -> None:
+    if args[0] != "open-cases":  # leave the cases for the coordinator to try to open
+        _run(home, CA, "open-cases", "FC-2026-10-PL", capsys=capsys)
+    if args[0] in ("request-evidence", "recommend"):
+        _run(home, CA, "handoff", "EX-009", "--note", "Mapping.", capsys=capsys)
+    log = home / "out" / "audit.jsonl"
+    before = len(_actions(home)) if log.exists() else 0
+    code, _, err = _run(home, CO, *args, capsys=capsys)
+    assert code == EXIT_REFUSED
+    assert "close-coordinator" in err
+    actions = _actions(home)
+    assert len(actions) - before <= 1
+    assert set(actions[before:]) <= {"ACCESS_DENIED"}
+
+
+def test_cases_cannot_be_handed_off_to_the_coordinator(
+    home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _run(home, CA, "open-cases", "FC-2026-10-PL", capsys=capsys)
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "agent",
+                "--as",
+                CA,
+                "--home",
+                str(home),
+                "handoff",
+                "EX-009",
+                "--to",
+                CO,
+                "--note",
+                "x",
+            ]
+        )
+
+
+def test_registry_rejects_an_unsafe_entity(tmp_path: Path) -> None:
+    data = {"submissions": {"FC-1": {"package": "a.csv", "entity": "../x"}}}
+    with pytest.raises(SubmissionError, match="invalid entity"):
+        parse_registry(data, tmp_path)
+
+
+def test_entity_status_board_is_labelled_with_the_entity_submission(
+    home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _run(home, CA, "open-cases", "FC-2026-10-PL", capsys=capsys)
+    _, pl, _ = _run(home, CO, "status", "FC-2026-10-PL", capsys=capsys)
+    assert (pl["submission_id"], pl["cases"]) == ("FC-2026-10-PL", 2)
+    assert pl["markdown"].startswith("# Close status: `FC-2026-10-PL`")

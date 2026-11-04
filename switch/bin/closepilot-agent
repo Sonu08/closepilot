@@ -12,7 +12,7 @@ home="$(cd "$here/../.." && pwd)"
 agent="$(basename "$PWD")"
 
 case "$agent" in
-  control-analyst | exception-investigator) ;;
+  control-analyst | exception-investigator | close-coordinator) ;;
   *)
     echo "error: run from switch/agents/<agent-name>, not '$PWD'" >&2
     exit 2

@@ -176,7 +176,14 @@ class Actor:
 
 CONTROL_ANALYST = Actor(ActorType.AGENT, "control-analyst")
 EXCEPTION_INVESTIGATOR = Actor(ActorType.AGENT, "exception-investigator")
-KNOWN_AGENTS: frozenset[str] = frozenset({CONTROL_ANALYST.name, EXCEPTION_INVESTIGATOR.name})
+#: Reads the package's status and keeps a status board in the review room. It may change
+#: nothing: no workflow rule names it, so every action by it is refused.
+CLOSE_COORDINATOR = Actor(ActorType.AGENT, "close-coordinator")
+KNOWN_AGENTS: frozenset[str] = frozenset(
+    {CONTROL_ANALYST.name, EXCEPTION_INVESTIGATOR.name, CLOSE_COORDINATOR.name}
+)
+#: The agents a case may be handed off to (agents that work cases).
+HANDOFF_TARGETS: frozenset[str] = frozenset({CONTROL_ANALYST.name, EXCEPTION_INVESTIGATOR.name})
 HUMAN_ROLE = "Finance Reviewer"
 #: ``case_id`` of the reviewer enrolment event. Not a valid case ID (case IDs start with a
 #: letter or digit), so no case can ever collide with it.

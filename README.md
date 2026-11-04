@@ -184,6 +184,24 @@ In PowerShell, set the secret without echoing it: `$env:CLOSEPILOT_REVIEWER_SECR
   - **Agent views are unchecked.** `closepilot agent …`, `reviewer cases` and `reviewer case` cannot check seals, so trust only `export`, `summary` and the case-changing commands.
   - **Starting over is not detectable from inside.** Deleting both the log and the reviewer file leaves no trace in either; the log hash in an exported decision record is the outside anchor.
 
+## Close room v2: one room per entity (built during the hackathon)
+
+Built during the Flip the Switch window (Nov 4–7, 2026), from commit `dc9fe79` onward. Everything before that, including the engine, the reviewer gate and the single-room setup above, was built on Nov 2–3 and is used here as an existing library.
+
+[`switch/closepilot-close-v2.template.yaml`](switch/closepilot-close-v2.template.yaml) is one Switch group template that creates:
+
+| Room | Who is in it | What happens there |
+|---|---|---|
+| `closepilot-oct-de`, `-pl`, `-us` | you, `control-analyst`, `exception-investigator` | The kickoff asks the analyst to check that entity (`FC-2026-10-DE` and so on). It opens the entity's cases and hands them to the investigator with an `@mention` in the same room |
+| `closepilot-oct-review` | you, `close-coordinator` | The coordinator keeps the room document **close-status-board**: every case's entity, state, recommendation and whom it waits on. You decide with `closepilot reviewer` |
+
+- **Links** run from each entity room to the review room and back, so every agent can see where escalations go.
+- **The coordinator is read-only.** It runs only `status`, `cases` and `case`. No workflow rule names it, so ClosePilot refuses any action from it, and a case can't be handed to it.
+- **Entity submissions** (`FC-2026-10-DE`, `-PL`, `-US` in [`config/submissions.yaml`](config/submissions.yaml)) run the controls on the whole package and keep that entity's records, so every figure matches the full package and duplicates across entities are still caught.
+- **Each agent works only in the room it is addressed in.** A [live spike](switch/spikes/close-v2-spike.template.yaml) showed that when one agent posts into another room, it takes that room over from its own other session there. So hand-offs happen by mention inside a room, and all state lives in ClosePilot, not in an agent's memory.
+
+**To run it:** start **Docker Desktop first**, then the Switch server (Switch's Mattermost runs in Docker). In Switch Console, go to **Templates → Import template**, choose the file, set **ClosePilot checkout**, choose **Existing agent** for `control-analyst` and `exception-investigator`, then **Create**. Afterwards ask `@close-coordinator` in the review room for an updated status board at any time.
+
 ## Security
 
 What ClosePilot protects, against whom, and what it does not: [`docs/threat-model.md`](docs/threat-model.md), including the release checks run before publishing.
