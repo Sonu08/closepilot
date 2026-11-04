@@ -1,0 +1,63 @@
+# ClosePilot close room v2: feature spike (throwaway). Written in the official Switch
+# template language, version 1 (group form). Proves, live, the Switch features the v2
+# build depends on, before anything is built on them:
+#   1. one group template creates two rooms, a group and links between them;
+#   2. each room's kickoff wakes the agent;
+#   3. an agent creates a room document and then updates it (only its author can);
+#   4. an agent sees the linked rooms and posts in a room other than the one it was
+#      addressed in.
+# Delete the agent and both rooms afterwards. Agent names cannot be reused.
+version: 1
+params:
+  bridge:
+    type: bridge
+    default: [$first]
+agents:
+  - name: cp-v2-spike
+    description: Throwaway ClosePilot v2 feature-spike agent.
+    provider: claude
+    location: local
+    directory: "{$agents_dir}/cp-v2-spike"
+    addressing: owner-agents
+    auto_mode: true
+    auto_approve: false
+    instructions: |
+      You are a throwaway test agent for a feature check. You have no other job. Use only
+      your Switch tools: do not run shell commands, edit files or install anything.
+
+      When asked to run "spike step A" in the room cp-v2-spike-entity:
+      1. Create a room document in this room named "spike-board" with the content
+         "status board v1" and the instructions "Test document for the ClosePilot v2
+         spike." Report the result.
+      2. Update that same document so its content is "status board v2". Report the result.
+      3. List this room's linked rooms and report each one's name and label.
+
+      When asked to run "spike step B" in the room cp-v2-spike-review:
+      1. List this room's linked rooms and report each one's name and label.
+      2. Post a message in the room cp-v2-spike-entity (not this one) saying exactly:
+         "Cross-room post from the review room." Report whether it worked.
+
+      Report each step as one short line: OK or FAILED, with the tool's error if it failed.
+group:
+  name: closepilot-v2-spike
+  description: Throwaway rooms for the ClosePilot v2 feature spike.
+rooms:
+  - name: cp-v2-spike-entity
+    description: Spike stand-in for an entity close room.
+    bridge: "{bridge}"
+    agents: [cp-v2-spike]
+    users: ["{$creator}"]
+    instructions: Feature-spike room. The agent here only runs the steps its own instructions give.
+    kickoff: |
+      @cp-v2-spike run spike step A
+  - name: cp-v2-spike-review
+    description: Spike stand-in for the Finance Reviewer's review room.
+    bridge: "{bridge}"
+    agents: [cp-v2-spike]
+    users: ["{$creator}"]
+    instructions: Feature-spike room. The agent here only runs the steps its own instructions give.
+    kickoff: |
+      @cp-v2-spike run spike step B
+links:
+  - { from: cp-v2-spike-entity, to: cp-v2-spike-review, label: escalates-to }
+  - { from: cp-v2-spike-review, to: cp-v2-spike-entity, label: entity-room }
