@@ -308,3 +308,18 @@ def test_entity_status_board_is_labelled_with_the_entity_submission(
     _, pl, _ = _run(home, CO, "status", "FC-2026-10-PL", capsys=capsys)
     assert (pl["submission_id"], pl["cases"]) == ("FC-2026-10-PL", 2)
     assert pl["markdown"].startswith("# Close status: `FC-2026-10-PL`")
+
+
+def test_cases_for_an_entity_submission_are_that_entitys_cases(
+    home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Found in the live v2 run: every case carries the package's submission_id, so the
+    entity submission must select cases by the records they were opened from."""
+    _run(home, CA, "open-cases", "FC-2026-10-DE", capsys=capsys)
+    _run(home, CA, "open-cases", "FC-2026-10-PL", capsys=capsys)
+    _, de, _ = _run(home, CA, "cases", "--submission", "FC-2026-10-DE", capsys=capsys)
+    assert [c["case_id"] for c in de["cases"]] == ["EX-003", "EX-010", "EX-012", "EX-016", "EX-019"]
+    _, full, _ = _run(home, CA, "cases", "--submission", "FC-2026-10", capsys=capsys)
+    assert len(full["cases"]) == 7
+    _, everything, _ = _run(home, CA, "cases", capsys=capsys)
+    assert len(everything["cases"]) == 7

@@ -36,7 +36,7 @@ from closepilot.models import (
 from closepilot.status import package_status, status_markdown
 from closepilot.submissions import SubmissionError, load_registry, resolve
 from closepilot.validation import validate_package
-from closepilot.workflow import CaseWorkflow, WorkflowError
+from closepilot.workflow import CaseWorkflow, WorkflowError, case_id_for
 
 EXIT_OK = 0
 EXIT_INPUT_ERROR = 2
@@ -120,9 +120,13 @@ def _status(args: argparse.Namespace, actor: Actor) -> int:
 
 
 def _cases(args: argparse.Namespace, actor: Actor) -> int:
-    cases = list(_workflow(args.home).cases().values())
+    wf = _workflow(args.home)
+    cases = sorted(wf.cases().values(), key=lambda c: c.case_id)
     if args.submission:
-        cases = [c for c in cases if c.submission_id == args.submission]
+        # Select by the records the submission covers: cases carry the package's own
+        # submission_id, which an entity submission such as FC-2026-10-DE shares.
+        mine = {case_id_for(r) for r in load_results(args.home, args.submission, wf.config)}
+        cases = [c for c in cases if c.case_id in mine]
     return _emit({"cases": [case_to_dict(c) for c in cases]})
 
 
