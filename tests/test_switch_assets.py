@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -56,7 +57,7 @@ def test_agent_permissions_allow_only_the_wrapper_and_hide_credentials(agent: st
 # --- close room v2 group template ----------------------------------------------------
 
 V2_TEMPLATE = REPO_ROOT / "switch" / "closepilot-close-v2.template.yaml"
-REVIEW_ROOM = "closepilot-oct-review"
+REVIEW_ROOM = "{room_prefix}-review"
 
 
 def _v2() -> dict[str, Any]:
@@ -73,8 +74,8 @@ def test_v2_agents_are_the_known_agents_in_their_folders() -> None:
         assert agent["provider"] == "claude"
         assert agent["auto_approve"] is False
         assert agent["addressing"] == "owner-agents"
-        # The two existing agents can be reused; only the coordinator is new.
-        assert agent.get("allow_existing", False) is (name in HANDOFF_TARGETS)
+        # Every agent can be reused, so the template runs again on a server that has them.
+        assert agent.get("allow_existing") is True
 
 
 def test_v2_entity_rooms_check_their_own_registered_entity() -> None:
@@ -110,3 +111,13 @@ def test_v2_instructions_use_no_builtin_placeholders() -> None:
     doc = _v2()
     for item in [*doc["agents"], *doc["rooms"]]:
         assert "{$" not in item["instructions"], item["name"]
+
+
+def test_v2_room_names_come_from_one_prefix() -> None:
+    doc = _v2()
+    prefix = doc["params"]["room_prefix"]
+    assert prefix["default"] == "closepilot-oct"
+    assert re.fullmatch(prefix["pattern"], "close-oct")
+    assert not re.fullmatch(prefix["pattern"], "Close Oct!")
+    names = sorted(r["name"] for r in doc["rooms"])
+    assert names == sorted(f"{{room_prefix}}-{s}" for s in ("de", "pl", "us", "review"))

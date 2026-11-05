@@ -19,6 +19,13 @@ params:
       Absolute path of this repository on the machine the agents run on, with forward
       slashes (for example C:/Projects/closepilot).
     pattern: "([A-Za-z]:)?/.+"
+  room_prefix:
+    label: Room name prefix
+    description: >-
+      Start of the four room names (for example close-oct gives close-oct-de, -pl, -us and
+      -review). Use a new prefix for each run on the same server; room names must be free.
+    default: closepilot-oct
+    pattern: "[a-z0-9][a-z0-9-]{1,40}"
 agents:
   - name: control-analyst
     allow_existing: true
@@ -56,6 +63,7 @@ agents:
       and why, in the room you were addressed in, addressed to the Finance Reviewer.
       You never approve, reject, close or decide, and you never attach evidence.
   - name: close-coordinator
+    allow_existing: true
     description: Keeps the ClosePilot status board in the review room. Read-only; never decides.
     provider: claude
     location: local
@@ -73,7 +81,7 @@ group:
   name: closepilot-close-2026-10-v2
   description: ClosePilot October close for Northstar Logistics Group (synthetic data), one room per entity.
 rooms:
-  - name: closepilot-oct-de
+  - name: "{room_prefix}-de"
     description: October close, entity NLG-DE (submission FC-2026-10-DE).
     bridge: "{bridge}"
     agents: [control-analyst, exception-investigator]
@@ -84,7 +92,7 @@ rooms:
       human Finance Reviewer only. All data is synthetic.
     kickoff: |
       @control-analyst check FC-2026-10-DE
-  - name: closepilot-oct-pl
+  - name: "{room_prefix}-pl"
     description: October close, entity NLG-PL (submission FC-2026-10-PL).
     bridge: "{bridge}"
     agents: [control-analyst, exception-investigator]
@@ -95,7 +103,7 @@ rooms:
       human Finance Reviewer only. All data is synthetic.
     kickoff: |
       @control-analyst check FC-2026-10-PL
-  - name: closepilot-oct-us
+  - name: "{room_prefix}-us"
     description: October close, entity NLG-US (submission FC-2026-10-US).
     bridge: "{bridge}"
     agents: [control-analyst, exception-investigator]
@@ -106,7 +114,7 @@ rooms:
       human Finance Reviewer only. All data is synthetic.
     kickoff: |
       @control-analyst check FC-2026-10-US
-  - name: closepilot-oct-review
+  - name: "{room_prefix}-review"
     description: October close review room for the Finance Reviewer, with the status board.
     bridge: "{bridge}"
     agents: [close-coordinator]
@@ -118,9 +126,9 @@ rooms:
     kickoff: |
       @close-coordinator build the status board for FC-2026-10
 links:
-  - { from: closepilot-oct-de, to: closepilot-oct-review, label: review-room }
-  - { from: closepilot-oct-pl, to: closepilot-oct-review, label: review-room }
-  - { from: closepilot-oct-us, to: closepilot-oct-review, label: review-room }
-  - { from: closepilot-oct-review, to: closepilot-oct-de, label: entity-NLG-DE }
-  - { from: closepilot-oct-review, to: closepilot-oct-pl, label: entity-NLG-PL }
-  - { from: closepilot-oct-review, to: closepilot-oct-us, label: entity-NLG-US }
+  - { from: "{room_prefix}-de", to: "{room_prefix}-review", label: review-room }
+  - { from: "{room_prefix}-pl", to: "{room_prefix}-review", label: review-room }
+  - { from: "{room_prefix}-us", to: "{room_prefix}-review", label: review-room }
+  - { from: "{room_prefix}-review", to: "{room_prefix}-de", label: entity-NLG-DE }
+  - { from: "{room_prefix}-review", to: "{room_prefix}-pl", label: entity-NLG-PL }
+  - { from: "{room_prefix}-review", to: "{room_prefix}-us", label: entity-NLG-US }
