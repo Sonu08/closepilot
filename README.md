@@ -6,12 +6,26 @@ ClosePilot is a collaborative AI finance-control room where agents validate and 
 
 > **ClosePilot does not allow an AI agent to approve material finance exceptions.** Agents calculate, investigate and recommend; a human reviewer makes and records the final decision.
 
-**Status:** working end to end — deterministic controls, a Switch room with two agents, deterministic investigation, human-only approval behind a reviewer check, an append-only audit log and decision-record export. All data is synthetic and describes the fictional *Northstar Logistics Group*.
+**Status:** working end to end — deterministic controls, three Switch agents across linked Discord or Mattermost rooms, deterministic investigation, human-only approval behind a reviewer check, an append-only audit log and decision-record export. All data is synthetic and describes the fictional *Northstar Logistics Group*.
+
+**🎥 [Demo video, 2:47](https://youtu.be/8zgcbYq1Vhs)** · **📝 [Write-up on dev.to](https://dev.to/sonu08/i-built-a-month-end-close-room-where-ai-agents-investigate-and-only-a-human-can-approve-with-ce9)** · built for Flip the Switch (WeMakeDevs)
+
+![In Discord, the Exception Investigator refuses to approve EX-003: only the human reviewer can](docs/images/agent-refuses-approval.png)
+
+*Asked to approve a material variance, the agent declines: it has no command that can, and ClosePilot's workflow refuses decisions from any agent.*
+
+## Judge it in five minutes
+
+1. **Watch the [video](https://youtu.be/8zgcbYq1Vhs)**: one Switch template creates four linked Discord rooms; agents check, hand off, investigate and recommend; only the human decides.
+2. **The Switch setup**: [`switch/closepilot-close-v2.template.yaml`](switch/closepilot-close-v2.template.yaml) (rooms, links, kickoffs) and the agent briefs and permission files in [`switch/agents/`](switch/agents). See *Close room v2* below.
+3. **The human-only gate**: the workflow rules in [`workflow.py`](src/closepilot/workflow.py) and the reviewer seals in [`reviewer.py`](src/closepilot/reviewer.py), tested in `tests/test_workflow.py`, `tests/test_reviewer_hardening.py` and `tests/test_reviewer_enrolment.py`.
+4. **Evidence for each judging criterion**, and what was verified live: [docs/judging-map.md](docs/judging-map.md).
+5. **Reproduce it**: [docs/demo-script.md → Close room v2 on Discord](docs/demo-script.md#close-room-v2-on-discord-the-recorded-demo), or run every step locally without Switch (*If something goes wrong*, last row).
 
 ## At a glance
 
 - **Problem:** month-end exception review is slow because validation, explanation, evidence and approval happen in disconnected spreadsheets and messages.
-- **What the demo shows:** a human starts a review in a Switch room. The Control Analyst agent runs deterministic controls, hands the material exception (EX-003, +13.89%) to the Exception Investigator agent with a real `@mention`, the investigator asks for evidence, and the human attaches it, decides and exports an auditable decision record. See [docs/demo-script.md](docs/demo-script.md).
+- **What the demo shows:** one Switch template creates a Discord room per entity and a review room. In each entity room the Control Analyst agent runs deterministic controls and hands the cases to the Exception Investigator agent with a real `@mention`; the investigator asks for evidence on the material exception (EX-003, +13.89%); a Close Coordinator agent keeps a live status board in the review room; and the human attaches the evidence, decides and exports an auditable decision record. See [docs/demo-script.md](docs/demo-script.md).
 - **Why Switch:** one shared room for people and agents, real agent-to-agent hand-offs, and sessions and addressing managed by Switch. ClosePilot enforces what Switch leaves to the application: who may decide.
 - **What stays human:** approving, rejecting, closing, attaching evidence and adding commentary.
 - **Reproduce it:** Quick start below, then *Switch room* for the room, or run every scene locally without Switch (demo script, last section).
@@ -19,7 +33,7 @@ ClosePilot is a collaborative AI finance-control room where agents validate and 
 | Document | What it covers |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | Components, deterministic vs generative split, case states, data and audit flow, failure handling, Switch's role |
-| [docs/demo-script.md](docs/demo-script.md) | The ten-scene demo with expected outputs |
+| [docs/demo-script.md](docs/demo-script.md) | The recorded Discord demo (close room v2) and the ten-scene single-room demo, with expected outputs |
 | [docs/judging-map.md](docs/judging-map.md) | Evidence for each judging criterion, and what was verified live |
 | [docs/threat-model.md](docs/threat-model.md) | Threats, mitigations, tests, residual risks, release checks |
 | [docs/limitations.md](docs/limitations.md) | What ClosePilot does not do |

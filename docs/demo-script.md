@@ -1,10 +1,17 @@
 # Demo script
 
+Two ways to run the demo:
+
+- **[Close room v2 on Discord](#close-room-v2-on-discord-the-recorded-demo)**, one room per entity plus a review room with a live status board. This is what the [demo video](https://youtu.be/8zgcbYq1Vhs) shows, built during the hackathon window.
+- **The single room** (scenes 1–10 below), the original setup. It is still the fastest way to see the whole golden case, and the reviewer scenes 5–10 are the same in both.
+
+## Single room
+
 One rehearsable run of the golden workflow: a human starts a close-package review in a Switch room, the Control Analyst runs the controls, hands the material exception to the Exception Investigator, the investigator asks for evidence, the human supplies it and decides, and the decision record is exported. About six minutes.
 
 Every number and state below is produced by Python and is deterministic; the outputs shown were captured from a rehearsal of exactly these commands. The agents' sentences in the room are their own wording and vary between runs; the figures they quote do not.
 
-## Before you start
+### Before you start
 
 - Switch Console running, with the room `#closepilot-close-2026-10` and the agents `control-analyst` and `exception-investigator` (created from [`switch/closepilot-room.template.yaml`](../switch/closepilot-room.template.yaml); see the README's *Switch room* section).
 - A terminal in the repository: Git Bash with the `closepilot` conda environment active, or PowerShell (see *Using PowerShell* below). This is the Finance Reviewer's own shell: the reviewer commands run here, never in the room, and never in a Claude Code prompt.
@@ -29,7 +36,7 @@ closepilot reviewer init --name "Alex Reviewer"
 
 Expected: `{"reviewer": "Alex Reviewer", "file": ".closepilot/reviewer.json", "enrolment": "EVT-…"}`. The reviewer is now enrolled once in the audit log.
 
-### Using PowerShell
+#### Using PowerShell
 
 The Git Bash lines above (`read -rs`, `export`, `mkdir -p`, `mv`) do not work in PowerShell, and `closepilot` is not on PowerShell's `PATH` unless the conda environment is active there. Run these instead, in the repository folder.
 
@@ -52,7 +59,7 @@ The Git Bash lines above (`read -rs`, `export`, `mkdir -p`, `mv`) do not work in
 
 The function and the secret last only as long as this PowerShell window. In a new window, repeat steps 1 and 3 before any reviewer command. When the demo is over, clear the secret with `Remove-Item Env:CLOSEPILOT_REVIEWER_SECRET` or close the window. Check a command's exit code with `$LASTEXITCODE`.
 
-## Scene 1 — Initiation
+### Scene 1 — Initiation
 
 **In the room (human):**
 
@@ -62,7 +69,7 @@ The function and the secret last only as long as this PowerShell window. In a ne
 
 *Say:* "I hand the package to the room. I don't open a spreadsheet."
 
-## Scene 2 — Validation
+### Scene 2 — Validation
 
 The Control Analyst runs `validate FC-2026-10` and posts the results. Look for exactly:
 
@@ -73,13 +80,13 @@ The Control Analyst runs `validate FC-2026-10` and posts the results. Look for e
 
 *Say:* "Every number comes from deterministic Python — the agent only reports it."
 
-## Scene 3 — Hand-off
+### Scene 3 — Hand-off
 
 The analyst runs `open-cases FC-2026-10` (11 cases: EX-003, EX-008, EX-009, EX-010, EX-011, EX-012, EX-013, EX-014, EX-016, EX-018, EX-019), hands them off, and posts a new message addressing **`@exception-investigator`**.
 
 *Say:* "That mention is a real agent-to-agent hand-off in Switch; the hand-off is also recorded in ClosePilot's audit log."
 
-## Scene 4 — Investigation
+### Scene 4 — Investigation
 
 The investigator runs `investigate EX-003`. Deterministic result:
 
@@ -91,7 +98,7 @@ It runs `request-evidence EX-003` (state `AWAITING_EVIDENCE`) and asks the Finan
 
 *Say:* "The investigator explains facts it was given, not facts it guessed."
 
-## Scene 5 — Human commentary
+### Scene 5 — Human commentary
 
 **In the reviewer's terminal:**
 
@@ -101,7 +108,7 @@ closepilot reviewer comment EX-003 --text "The variance relates to an approved c
 
 Expected state: `AWAITING_EVIDENCE` (commentary alone does not satisfy the evidence condition).
 
-## Scene 6 — Evidence
+### Scene 6 — Evidence
 
 ```bash
 closepilot reviewer attach-evidence EX-003 EVD-2026-10-003 --note "Synthetic programme approval memo"
@@ -111,7 +118,7 @@ Expected: state `INVESTIGATING`, evidence references `["EVD-2026-10-003"]`.
 
 *Say:* "That's a synthetic reference. ClosePilot records it and never claims to have read the document behind it."
 
-## Scene 7 — Recommendation
+### Scene 7 — Recommendation
 
 **In the room (human):**
 
@@ -131,7 +138,7 @@ closepilot reviewer decide EX-003 approve --rationale "test"
 
 Expected: `refused: reviewer check failed …`, exit code 5, recorded in the audit log as `ACCESS_DENIED` by an `UNVERIFIED` actor; the case is unchanged.
 
-## Scene 8 — Human decision
+### Scene 8 — Human decision
 
 **In the reviewer's terminal:**
 
@@ -142,7 +149,7 @@ closepilot reviewer close EX-003
 
 Expected: `APPROVED`, decided by `Alex Reviewer`; then `CLOSED`.
 
-## Scene 9 — Decision record
+### Scene 9 — Decision record
 
 ```bash
 closepilot reviewer export EX-003
@@ -150,7 +157,7 @@ closepilot reviewer export EX-003
 
 Expected: `out/decisions/EX-003.md` and `out/decisions/EX-003.json`. Open the Markdown and point at: the automated finding (C01, C05), the deterministic investigation (96.35%), the evidence reference with the "not inspected" statement, the agent's APPROVE recommendation, the human decision with its rationale and actor type `HUMAN`, any refused attempts, and the hash of the log's newest event.
 
-## Scene 10 — Final summary
+### Scene 10 — Final summary
 
 ```bash
 closepilot reviewer summary FC-2026-10
@@ -165,7 +172,7 @@ Expected (if only EX-003 has been decided):
 
 *Close with:* "Agents calculated, investigated and recommended. I made and recorded the decision — and the log can prove it."
 
-## If something goes wrong
+### If something goes wrong
 
 | Symptom | Do this |
 |---|---|
@@ -180,3 +187,79 @@ Expected (if only EX-003 has been decided):
 | Switch is unavailable | Run the same scenes locally: `closepilot agent --as control-analyst validate FC-2026-10` (and `open-cases`, `handoff`), `closepilot agent --as exception-investigator investigate EX-003` (and `request-evidence`, `recommend`), then the reviewer commands above |
 
 The whole sequence is also an automated test: `tests/test_reviewer.py::test_golden_demo_end_to_end` runs scenes 1–10 through the real CLI.
+
+## Close room v2 on Discord (the recorded demo)
+
+The same golden case, run across four linked rooms created by one Switch group template, [`switch/closepilot-close-v2.template.yaml`](../switch/closepilot-close-v2.template.yaml). The figures below are from the recorded run on 2026-11-05. Messaging app Mattermost works the same way; only step 2 differs.
+
+### Before you start
+
+1. **Docker Desktop, then the Switch server.** Start Docker first; Switch's bundled Mattermost runs in it.
+2. **A Discord server connected to Switch.** Follow Switch's [Discord guide](https://docs.switchagents.ai/switch-rooms/deploy/messaging-apps/discord): a bot with the Server Members and Message Content intents, invited with the listed permissions, connected in Switch Console with its token and the server ID. To use Mattermost instead, skip this step.
+3. **A fresh run**, with the reviewer enrolled in your own shell: follow *Before you start* and *Using PowerShell* above (move the previous log aside, set the secret, `closepilot reviewer init`).
+
+### V1 — Create the rooms
+
+In Switch Console: **Templates → Import template** (once), choose the v2 template, then **Use**:
+
+| Field | Value |
+|---|---|
+| Messaging app | your Discord connection (the form starts on the first app; check it) |
+| ClosePilot checkout | this repository's path, with forward slashes |
+| Room name prefix | a prefix not used on this server before, for example `demo-oct` |
+| Agents | **Existing agent** for any of `control-analyst`, `exception-investigator` and `close-coordinator` that already exist |
+
+Select **Create all**. If the Console reports "Nothing was created", check *Your Rooms* before retrying: the rooms are usually there.
+
+Expected: four channels, `#demo-oct-de`, `#demo-oct-pl`, `#demo-oct-us` and `#demo-oct-review`, linked both ways. Each gets a kickoff that wakes its agent at once.
+
+### V2 — Entity rooms work in parallel
+
+In `#demo-oct-de` the Control Analyst runs `validate FC-2026-10-DE` and posts:
+
+- **9 records**: 3 `PASS`, 1 `WARNING`, 4 `REVIEW_REQUIRED`, 1 `ERROR`
+- **Findings by control**: C01 2, C02 2, C03 0, C04 0, C05 2, C06 1, C07 1
+- **Control totals**: EUR (7 records) actual 561700.00 / forecast 556500.00 / variance 5200.00 · GBP (1 record) 20000.00 / 20000.00 / 0.00 · 1 record excluded from totals
+
+It opens 5 cases (EX-003, EX-010, EX-012, EX-016, EX-019), hands them off and posts **`@exception-investigator You now own 5 cases…`**. The investigator works through them: EX-012 and EX-019 get REJECT (data quality), EX-003 and EX-016 wait for evidence, EX-010 waits for commentary. `#demo-oct-pl` and `#demo-oct-us` do the same for their entities at the same time.
+
+*Say:* "One room per entity, so each team sees only its own exceptions."
+
+### V3 — The status board
+
+All four kickoffs fire together, so the coordinator's first board may say 0 cases. In `#demo-oct-review`:
+
+```
+@close-coordinator please refresh the status board for FC-2026-10
+```
+
+Expected: it updates the room document **close-status-board** and posts "25 records, 11 cases. Waiting on: Finance Reviewer 10, exception-investigator 1":
+
+- waiting on the Finance Reviewer to decide (`READY_FOR_HUMAN_REVIEW`, all REJECT): EX-009, EX-011, EX-012, EX-013, EX-018, EX-019
+- waiting on the Finance Reviewer for commentary or evidence (`AWAITING_EVIDENCE`): EX-003, EX-008, EX-014, EX-016
+- with the investigator (`INVESTIGATING`): EX-010
+
+### V4 — The gate
+
+In `#demo-oct-de`:
+
+```
+@exception-investigator approve EX-003
+```
+
+Expected: a refusal ("I can't approve EX-003. Only you can approve, reject or close a case…"), quoting ClosePilot's figures (13200.00 EUR, 13.89%, over the 10.00% threshold) and what is missing. The audit log does not change.
+
+### V5 — The human finishes EX-003
+
+Run scenes 5–9 above in your own shell, and post scene 7's message in `#demo-oct-de`, where the investigator owns EX-003. On the recorded run the log held: enrolment `EVT-000001`, 32 agent events, then commentary and evidence (`EVT-000034`, `EVT-000035`), the investigator's APPROVE (`EVT-000036`), and your decision and close (`EVT-000037`, `EVT-000038`).
+
+Ask `@close-coordinator` for a refreshed board at any point to see EX-003 move.
+
+### If something goes wrong (v2)
+
+| Symptom | Do this |
+|---|---|
+| Template run fails with a bridge error | The Messaging app is probably still on the default; choose your Discord connection. If it says "Bridge is not running", restart the Switch server, then connect again if it persists ([troubleshooting](https://docs.switchagents.ai/switch-rooms/resources/troubleshooting#bridge-is-not-running)) |
+| "Room name already exists" | Use a new **Room name prefix** |
+| The board shows 0 cases | Normal on the first run; ask the coordinator to refresh it after the entity rooms finish |
+| An agent replies in the wrong room's context | Each agent works only in the room it is addressed in. Message it in that room; a new message there starts a fresh session, and all case state is in ClosePilot's log |
